@@ -41,6 +41,7 @@ export interface SkillListItem {
   rating: Rating;
   origin_type: OriginType;
   version: string;
+  recommendation: string | null;
   author: UserBrief;
   stats: SkillStats;
   user_liked: boolean;

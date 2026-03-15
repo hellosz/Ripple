@@ -164,6 +164,7 @@ async def list_skills(
             "rating": skill.rating.value,
             "origin_type": skill.origin_type.value,
             "version": skill.version,
+            "recommendation": skill.recommendation,
             "author": {
                 "id": author.id,
                 "nickname": author.nickname,

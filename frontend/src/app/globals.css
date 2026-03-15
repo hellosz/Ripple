@@ -200,6 +200,15 @@ body {
   }
 }
 
+/* Hide scrollbar for filter tabs */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 /* Code block styling */
 pre code {
   font-size: 0.875rem;

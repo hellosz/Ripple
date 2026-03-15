@@ -95,6 +95,13 @@ docker-logs: ## Tail Docker Compose logs
 # ──────────────────────────────────────────────
 # Utilities
 # ──────────────────────────────────────────────
+cli-pack: ## Package CLI tool into .tgz and copy to backend/static/cli/
+	cd cli && npm pack
+	mkdir -p $(BACKEND_DIR)/static/cli
+	mv cli/anthropic-ai-ripple-cli-*.tgz $(BACKEND_DIR)/static/cli/ripple-cli.tgz
+	@echo "  CLI packaged → $(BACKEND_DIR)/static/cli/ripple-cli.tgz"
+	@echo "  Users can install with: npm i -g https://<your-server>/static/cli/ripple-cli.tgz"
+
 clean: ## Remove build artifacts and caches
 	rm -rf $(FRONTEND_DIR)/.next $(FRONTEND_DIR)/out
 	find $(BACKEND_DIR) -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
