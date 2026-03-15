@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Eye, Heart, Copy, Download } from "lucide-react";
 import type { SkillListItem } from "@/types";
-import { CATEGORY_LABELS, CATEGORY_ICONS } from "@/lib/utils";
+import { CATEGORY_LABELS } from "@/lib/utils";
 import { SkillPreviewModal } from "./SkillPreviewModal";
 
 interface SkillCardProps {
@@ -16,7 +16,6 @@ export function SkillCard({ skill, index }: SkillCardProps) {
   const [showPreview, setShowPreview] = useState(false);
 
   const categoryLabel = skill.category ? CATEGORY_LABELS[skill.category] || skill.category : null;
-  const categoryIcon = skill.category ? CATEGORY_ICONS[skill.category] || "📦" : null;
   const authorInitial = skill.author?.nickname?.[0] || skill.author?.email?.[0]?.toUpperCase() || "?";
   const authorName = skill.author?.nickname || skill.author?.email?.split("@")[0] || "Unknown";
 
@@ -36,7 +35,6 @@ export function SkillCard({ skill, index }: SkillCardProps) {
           {/* Category badge */}
           {categoryLabel ? (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/[0.05] text-[11px] text-white/40">
-              <span>{categoryIcon}</span>
               {categoryLabel}
             </span>
           ) : (

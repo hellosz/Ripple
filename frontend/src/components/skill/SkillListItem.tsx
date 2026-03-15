@@ -7,7 +7,7 @@ import { SkillRating } from "./SkillRating";
 import { LikeButton } from "@/components/interaction/LikeButton";
 import { DownloadButton } from "@/components/interaction/DownloadButton";
 import { RippleButton } from "@/components/interaction/RippleButton";
-import { ORIGIN_LABELS, CATEGORY_ICONS } from "@/lib/utils";
+import { ORIGIN_LABELS, CATEGORY_LABELS } from "@/lib/utils";
 
 interface SkillListItemProps {
   skill: SkillListItemType;
@@ -18,15 +18,15 @@ export function SkillListItemComponent({
   skill,
   onTagClick,
 }: SkillListItemProps) {
-  const categoryIcon =
-    CATEGORY_ICONS[skill.category || ""] || "📦";
+  const categoryLabel =
+    CATEGORY_LABELS[skill.category || ""] || skill.category || "";
 
   return (
     <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:border-gray-300 dark:hover:border-gray-600 transition-colors animate-fade-in">
       <div className="flex items-start gap-3">
         {/* Icon */}
-        <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-lg">
-          {categoryIcon}
+        <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-xs font-medium text-gray-500 dark:text-gray-400">
+          {categoryLabel.slice(0, 2)}
         </div>
 
         {/* Content */}

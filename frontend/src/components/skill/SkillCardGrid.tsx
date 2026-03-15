@@ -6,7 +6,7 @@ import { ChevronLeft, ChevronRight, SlidersHorizontal, X } from "lucide-react";
 import { skills as skillsApi } from "@/lib/api";
 import { SkillCard } from "./SkillCard";
 import type { SkillListItem } from "@/types";
-import { RATING_CONFIG, ORIGIN_LABELS, CATEGORY_LABELS, CATEGORY_ICONS } from "@/lib/utils";
+import { RATING_CONFIG, ORIGIN_LABELS, CATEGORY_LABELS } from "@/lib/utils";
 
 const PAGE_SIZE = 12;
 
@@ -91,7 +91,6 @@ export function SkillCardGrid({ search = "" }: SkillCardGridProps) {
                 onClick={() => { setCategory(key); setPage(1); }}
                 className={pillClass(category === key)}
               >
-                <span className="mr-1">{CATEGORY_ICONS[key]}</span>
                 {label}
               </button>
             ))}
@@ -142,7 +141,7 @@ export function SkillCardGrid({ search = "" }: SkillCardGridProps) {
                       onClick={() => { setRating(key); setPage(1); }}
                       className={pillClass(rating === key)}
                     >
-                      {config.emoji} {config.label}
+                      {config.label}
                     </button>
                   ))}
                 </div>
