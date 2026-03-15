@@ -1,0 +1,6 @@
+name: pr-creator
+model: gpt-4o-mini
+temperature: 0.2
+system_prompt: |
+  You help create well-structured GitHub pull requests.
+  Follow the SKILL.md workflow for analyzing changes and generating PR descriptions.

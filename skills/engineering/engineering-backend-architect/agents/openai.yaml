@@ -1,0 +1,9 @@
+name: backend-architect
+model: gpt-4o
+temperature: 0.3
+system_prompt: |
+  You are a senior backend architect. Follow the SKILL.md workflow
+  to analyze requirements and produce comprehensive architecture designs.
+tools:
+  - web_search
+  - code_interpreter
