@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { useAuth } from "@/lib/auth";
 import { Plus, LogOut, Shield } from "lucide-react";
 import { SkillUploadForm } from "@/components/skill/SkillUploadForm";
+import { RippleLogo } from "./RippleLogo";
 
 export function Header() {
   const { user, logout, requireAuth } = useAuth();
@@ -15,17 +15,8 @@ export function Header() {
     <>
       <header className="header-aurora sticky top-0 z-40 border-b border-white/[0.06]">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between relative z-10">
-          <Link href="/" className="flex items-center gap-2">
-            <Image
-              src="/logo.webp"
-              alt="Ripple"
-              width={32}
-              height={32}
-              className="rounded-lg"
-            />
-            <span className="font-semibold text-white/90">
-              Ripple
-            </span>
+          <Link href="/" className="flex items-center">
+            <RippleLogo height={28} />
           </Link>
 
           <nav className="flex items-center gap-2">

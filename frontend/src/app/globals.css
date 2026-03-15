@@ -88,6 +88,33 @@ body {
   animation: card-fade-in 0.3s ease-out both;
 }
 
+/* Ripple quote character animations */
+@keyframes ripple-char-in {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.9);
+    filter: blur(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes ripple-char-out {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.95);
+    filter: blur(3px);
+  }
+}
+
 /* Search overlay — always mounted, toggled via class */
 .search-overlay {
   position: fixed;
