@@ -28,7 +28,7 @@ const QUOTES = [
 type Phase = "in" | "visible" | "out";
 
 export function RippleQuote() {
-  const [index, setIndex] = useState(() => Math.floor(Math.random() * QUOTES.length));
+  const [index, setIndex] = useState(0);
   const [phase, setPhase] = useState<Phase>("in");
 
   const quote = QUOTES[index];

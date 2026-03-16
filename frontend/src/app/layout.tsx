@@ -1,6 +1,7 @@
 "use client";
 
 import "./globals.css";
+import { AnimatePresence } from "framer-motion";
 import { AuthContext } from "@/lib/auth";
 import { useAuthProvider } from "@/hooks/useAuth";
 import { Header } from "@/components/layout/Header";
@@ -38,12 +39,14 @@ export default function RootLayout({
           <main className="max-w-6xl mx-auto px-4 py-6">{children}</main>
           <Footer />
 
-          {authState.showLogin && (
-            <LoginModal
-              onClose={() => authState.setShowLogin(false)}
-              onSuccess={authState.login}
-            />
-          )}
+          <AnimatePresence>
+            {authState.showLogin && (
+              <LoginModal
+                onClose={() => authState.setShowLogin(false)}
+                onSuccess={authState.login}
+              />
+            )}
+          </AnimatePresence>
 
           {/* Ripple Notifications */}
           <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-3">

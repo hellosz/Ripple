@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { X, Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { motion } from "framer-motion";
 import { auth } from "@/lib/api";
 
 interface LoginModalProps {
@@ -17,6 +18,7 @@ export function LoginModal({ onClose, onSuccess }: LoginModalProps) {
   const [error, setError] = useState("");
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const emailInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,22 +64,64 @@ export function LoginModal({ onClose, onSuccess }: LoginModalProps) {
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLFormElement>) => {
+    if (e.key !== "Enter" || loading) return;
+    const target = e.target as HTMLElement;
+    if (target.tagName.toLowerCase() === "button") return;
+    e.preventDefault();
+    void handleEmailSubmit(e as unknown as React.FormEvent);
+  };
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      emailInputRef.current?.focus();
+    }, 80);
+
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [onClose]);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[radial-gradient(circle_at_top,rgba(139,92,246,0.18),transparent_30%),rgba(10,6,18,0.68)] px-4 backdrop-blur-[6px]">
-      <div className="w-full max-w-[520px] overflow-hidden rounded-[28px] border border-white/45 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,244,255,0.97)_100%)] shadow-[0_30px_90px_rgba(20,10,35,0.32)]">
-        <div className="relative border-b border-[#e7dcf5] px-8 py-6">
-          <h2 className="text-center text-[28px] font-semibold tracking-tight text-[#1d1630]">
+    <motion.div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[radial-gradient(circle_at_top,rgba(139,92,246,0.18),transparent_30%),rgba(10,6,18,0.68)] px-4 backdrop-blur-[6px]"
+      initial={{ opacity: 0, backdropFilter: "blur(0px)" }}
+      animate={{ opacity: 1, backdropFilter: "blur(6px)" }}
+      exit={{ opacity: 0, backdropFilter: "blur(0px)" }}
+      transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+    >
+      <motion.div
+        className="w-full max-w-[520px] overflow-hidden rounded-[28px] border border-white/45 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,244,255,0.97)_100%)] shadow-[0_30px_90px_rgba(20,10,35,0.32)]"
+        initial={{ opacity: 0, y: 24, scale: 0.96, filter: "blur(10px)" }}
+        animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
+        exit={{ opacity: 0, y: 18, scale: 0.98, filter: "blur(8px)" }}
+        transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <div className="relative border-b border-[#e7dcf5] bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(244,237,252,0.92)_100%)] px-8 py-7">
+          <h2 className="text-center text-[32px] font-semibold tracking-[-0.03em] text-[#1d1630]">
             {isNewUser ? "Create Account" : "Login to Ripple"}
           </h2>
+          <div className="mt-3 flex justify-center">
+            <div className="h-px w-24 bg-[linear-gradient(90deg,transparent_0%,#cdb8ea_50%,transparent_100%)]" />
+          </div>
           <button
             onClick={onClose}
-            className="absolute right-5 top-5 rounded-full p-2 text-[#c0b3d6] transition-colors hover:bg-[#f1e8fb] hover:text-[#6f5a96]"
+            className="absolute right-5 top-5 rounded-full p-2 text-[#c0b3d6] transition-all duration-200 hover:scale-105 hover:bg-[#f1e8fb] hover:text-[#6f5a96] active:scale-95 active:bg-[#eadcf8]"
           >
             <X size={18} />
           </button>
         </div>
 
-        <form onSubmit={handleEmailSubmit} className="space-y-5 px-8 py-8">
+        <form onSubmit={handleEmailSubmit} onKeyDown={handleKeyDown} className="space-y-5 px-8 py-8">
           <div>
             <label className="mb-2 block text-sm font-medium text-[#554b6a]">
               Email
@@ -88,6 +132,7 @@ export function LoginModal({ onClose, onSuccess }: LoginModalProps) {
                 className="absolute left-4 top-1/2 -translate-y-1/2 text-[#a194ba]"
               />
               <input
+                ref={emailInputRef}
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -136,7 +181,7 @@ export function LoginModal({ onClose, onSuccess }: LoginModalProps) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-2xl bg-[linear-gradient(90deg,#7c4de0_0%,#9a62f6_100%)] py-3.5 text-base font-medium text-white shadow-[0_16px_36px_rgba(124,77,224,0.34)] transition-all hover:translate-y-[-1px] hover:shadow-[0_20px_42px_rgba(124,77,224,0.42)] disabled:opacity-50"
+            className="w-full rounded-2xl bg-[linear-gradient(90deg,#7c4de0_0%,#9a62f6_100%)] py-3.5 text-base font-medium text-white shadow-[0_16px_36px_rgba(124,77,224,0.34)] transition-all duration-200 hover:translate-y-[-1px] hover:scale-[1.01] hover:shadow-[0_20px_42px_rgba(124,77,224,0.42)] active:translate-y-[1px] active:scale-[0.992] active:shadow-[0_10px_24px_rgba(124,77,224,0.28)] disabled:opacity-50 disabled:hover:scale-100 disabled:hover:translate-y-0"
           >
             {loading
               ? "Processing..."
@@ -160,7 +205,7 @@ export function LoginModal({ onClose, onSuccess }: LoginModalProps) {
             </button>
           </div>
         </form>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }
