@@ -6,6 +6,7 @@
     "ripple": "./bin/ripple.mjs"
   },
   "type": "module",
+  "packageManager": "pnpm@10.6.5",
   "engines": {
     "node": ">=18.0.0"
   },
@@ -15,7 +16,7 @@
     "README.md"
   ],
   "scripts": {
-    "pack": "npm pack"
+    "pack": "pnpm pack"
   },
   "repository": {
     "type": "git",

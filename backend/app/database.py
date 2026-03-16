@@ -1,5 +1,6 @@
 import logging
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy import text
 from sqlalchemy.orm import DeclarativeBase
 from app.config import settings
 
@@ -30,6 +31,16 @@ async def init_db():
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
         logger.info("Database tables initialized")
+    except Exception as e:
+        logger.warning(f"Could not connect to database: {e}")
+        logger.warning("App will start, but DB-dependent endpoints will fail until DB is available")
+
+
+async def check_db_connection():
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("SELECT 1"))
+        logger.info("Database connection established")
     except Exception as e:
         logger.warning(f"Could not connect to database: {e}")
         logger.warning("App will start, but DB-dependent endpoints will fail until DB is available")

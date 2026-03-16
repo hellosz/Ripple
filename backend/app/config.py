@@ -6,6 +6,7 @@ import json
 class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://ripple:ripple@localhost:5432/ripple"
+    DB_AUTO_INIT_ON_STARTUP: bool = False
 
     # JWT
     JWT_SECRET_KEY: str = "your-secret-key-change-this"

@@ -1,4 +1,6 @@
 const API_BASE = "/api";
+const skillDetailCache = new Map<string, any>();
+const skillDetailPending = new Map<string, Promise<any>>();
 
 function getToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -73,7 +75,36 @@ export const skills = {
       : "";
     return request<any>(`/skills${query}`);
   },
-  get: (slug: string) => request<any>(`/skills/${slug}`),
+  get: async (slug: string) => {
+    if (skillDetailCache.has(slug)) {
+      return skillDetailCache.get(slug);
+    }
+
+    if (skillDetailPending.has(slug)) {
+      return skillDetailPending.get(slug);
+    }
+
+    const pending = request<any>(`/skills/${slug}`)
+      .then((data) => {
+        skillDetailCache.set(slug, data);
+        skillDetailPending.delete(slug);
+        return data;
+      })
+      .catch((error) => {
+        skillDetailPending.delete(slug);
+        throw error;
+      });
+
+    skillDetailPending.set(slug, pending);
+    return pending;
+  },
+  peek: (slug: string) => skillDetailCache.get(slug) ?? null,
+  prefetch: async (slug: string) => {
+    if (skillDetailCache.has(slug)) {
+      return skillDetailCache.get(slug);
+    }
+    return skills.get(slug);
+  },
   getFiles: (slug: string) => request<any[]>(`/skills/${slug}/files`),
   getFileContent: (slug: string, path: string) =>
     request<any>(`/skills/${slug}/files/${path}`),

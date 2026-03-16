@@ -1,0 +1,36 @@
+{
+  "name": "ripple",
+  "private": true,
+  "packageManager": "pnpm@10.6.5",
+  "scripts": {
+    "env": "sh -c 'test -f backend/.env && echo \"backend/.env already exists, skipping\" || (cp backend/.env.example backend/.env && echo \"Created backend/.env\")'",
+    "install:backend": "cd backend && UV_CACHE_DIR=/tmp/uv-cache uv sync",
+    "install:frontend": "pnpm --dir frontend install",
+    "setup:backend": "pnpm run install:backend",
+    "setup:frontend": "pnpm run install:frontend",
+    "setup": "pnpm run setup:backend && pnpm run setup:frontend",
+    "dev": "pnpm run dev:backend & pnpm run dev:frontend & wait",
+    "dev:backend": "cd backend && UV_CACHE_DIR=/tmp/uv-cache uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",
+    "dev:frontend": "pnpm --dir frontend dev",
+    "db:init": "cd backend && UV_CACHE_DIR=/tmp/uv-cache uv run python -c \"import asyncio; from app.database import init_db; asyncio.run(init_db())\"",
+    "db:admin-init": "cd backend && UV_CACHE_DIR=/tmp/uv-cache uv run python bootstrap_admin.py",
+    "db:migrate": "sh -c 'cd backend && UV_CACHE_DIR=/tmp/uv-cache uv run alembic revision --autogenerate -m \"$1\"' --",
+    "db:upgrade": "cd backend && UV_CACHE_DIR=/tmp/uv-cache uv run alembic upgrade head",
+    "db:downgrade": "cd backend && UV_CACHE_DIR=/tmp/uv-cache uv run alembic downgrade -1",
+    "db:seed": "cd backend && UV_CACHE_DIR=/tmp/uv-cache uv run python seed_skills.py",
+    "db:bootstrap": "pnpm run db:upgrade && pnpm run db:admin-init && pnpm run db:seed",
+    "lint": "pnpm --dir frontend lint",
+    "test": "cd backend && UV_CACHE_DIR=/tmp/uv-cache uv run pytest -v",
+    "build": "pnpm --dir frontend build",
+    "build:backend": "docker build -t ripple-backend backend",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f",
+    "cli:pack": "cd cli && pnpm pack"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "chrome-devtools-mcp": "^0.20.0",
+    "playwright": "^1.58.2"
+  }
+}

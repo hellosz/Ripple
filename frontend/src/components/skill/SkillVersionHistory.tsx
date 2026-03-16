@@ -13,28 +13,28 @@ export function SkillVersionHistory({ versions }: SkillVersionHistoryProps) {
 
   return (
     <div className="space-y-3">
-      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+      <h3 className="text-lg font-semibold text-[#201730]">
         Version History
       </h3>
       <div className="space-y-0">
         {versions.map((v, i) => (
           <div
             key={v.id}
-            className="flex items-start gap-3 py-3 border-l-2 border-gray-200 dark:border-gray-700 pl-4 relative"
+            className="relative flex items-start gap-3 border-l-2 border-[#ddd2ee] py-3 pl-4"
           >
-            <div className="absolute -left-[5px] top-4 w-2 h-2 rounded-full bg-ripple-500" />
+            <div className="absolute -left-[5px] top-4 h-2 w-2 rounded-full bg-[#7c62b7]" />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-mono text-sm font-medium text-gray-900 dark:text-white">
+                <span className="font-mono text-sm font-medium text-[#201730]">
                   v{v.version}
                 </span>
                 {v.rating && <SkillRating rating={v.rating} size="sm" />}
-                <span className="text-xs text-gray-500">
+                <span className="text-xs text-[#8b809f]">
                   {formatDate(v.created_at)}
                 </span>
               </div>
               {v.changelog && (
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                <p className="mt-1 text-sm text-[#5b536d]">
                   {v.changelog}
                 </p>
               )}

@@ -4,14 +4,17 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.config import settings
-from app.database import init_db
+from app.database import check_db_connection, init_db
 from app.api import auth, users, skills, interactions, sse, admin
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    await init_db()
+    if settings.DB_AUTO_INIT_ON_STARTUP:
+        await init_db()
+    else:
+        await check_db_connection()
     yield
     # Shutdown
 

@@ -78,7 +78,7 @@ export function SkillPreviewModal({ slug, onClose }: SkillPreviewModalProps) {
               <div className="h-20 bg-white/[0.05] rounded w-full mt-4" />
             </div>
           ) : detail?.content ? (
-            <div className="prose prose-invert prose-sm max-w-none prose-headings:text-white/90 prose-p:text-white/50 prose-li:text-white/50 prose-strong:text-white/70 prose-code:text-ripple-300 prose-pre:bg-white/[0.04] prose-pre:border prose-pre:border-white/[0.06]">
+            <div className="prose prose-invert prose-sm max-w-none prose-headings:text-white prose-p:text-white/75 prose-li:text-white/75 prose-strong:text-white prose-code:text-emerald-300 prose-pre:bg-black/30 prose-pre:border prose-pre:border-white/[0.08]">
               <SkillMarkdown content={detail.content} />
             </div>
           ) : (

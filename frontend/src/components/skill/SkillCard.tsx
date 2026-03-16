@@ -2,10 +2,13 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Eye, Heart, Copy, Download } from "lucide-react";
 import type { SkillListItem } from "@/types";
+import { skills as skillsApi } from "@/lib/api";
 import { CATEGORY_LABELS } from "@/lib/utils";
 import { SkillPreviewModal } from "./SkillPreviewModal";
+import { navigateWithTransition } from "@/lib/navigation";
 
 interface SkillCardProps {
   skill: SkillListItem;
@@ -14,6 +17,8 @@ interface SkillCardProps {
 
 export function SkillCard({ skill, index }: SkillCardProps) {
   const [showPreview, setShowPreview] = useState(false);
+  const router = useRouter();
+  const href = `/skill/${skill.name}`;
 
   const categoryLabel = skill.category ? CATEGORY_LABELS[skill.category] || skill.category : null;
   const authorInitial = skill.author?.nickname?.[0] || skill.author?.email?.[0]?.toUpperCase() || "?";
@@ -22,6 +27,25 @@ export function SkillCard({ skill, index }: SkillCardProps) {
   const handleCopy = (e: React.MouseEvent) => {
     e.preventDefault();
     navigator.clipboard.writeText(`npx ripple install ${skill.name}`);
+  };
+
+  const handleNavigate = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (
+      e.defaultPrevented ||
+      e.button !== 0 ||
+      e.metaKey ||
+      e.ctrlKey ||
+      e.shiftKey ||
+      e.altKey
+    ) {
+      return;
+    }
+    e.preventDefault();
+    navigateWithTransition(router, href);
+  };
+
+  const handlePrefetch = () => {
+    void skillsApi.prefetch(skill.name);
   };
 
   return (
@@ -73,7 +97,13 @@ export function SkillCard({ skill, index }: SkillCardProps) {
         </div>
 
         {/* Main content — clickable to detail page */}
-        <Link href={`/skill/${skill.name}`} className="block px-5 pb-4">
+        <Link
+          href={href}
+          onClick={handleNavigate}
+          onMouseEnter={handlePrefetch}
+          onFocus={handlePrefetch}
+          className="block px-5 pb-4"
+        >
           {/* Name + description */}
           <h3 className="font-semibold text-[15px] text-white/90 group-hover:text-ripple-400 transition-colors leading-snug">
             {skill.display_name || skill.name}

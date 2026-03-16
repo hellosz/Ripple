@@ -1,13 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import type { SkillListItem as SkillListItemType } from "@/types";
+import { skills as skillsApi } from "@/lib/api";
 import { SkillRating } from "./SkillRating";
 import { LikeButton } from "@/components/interaction/LikeButton";
 import { DownloadButton } from "@/components/interaction/DownloadButton";
 import { RippleButton } from "@/components/interaction/RippleButton";
 import { ORIGIN_LABELS, CATEGORY_LABELS } from "@/lib/utils";
+import { navigateWithTransition } from "@/lib/navigation";
 
 interface SkillListItemProps {
   skill: SkillListItemType;
@@ -18,8 +21,29 @@ export function SkillListItemComponent({
   skill,
   onTagClick,
 }: SkillListItemProps) {
+  const router = useRouter();
+  const href = `/skill/${skill.name}`;
   const categoryLabel =
     CATEGORY_LABELS[skill.category || ""] || skill.category || "";
+
+  const handleNavigate = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (
+      e.defaultPrevented ||
+      e.button !== 0 ||
+      e.metaKey ||
+      e.ctrlKey ||
+      e.shiftKey ||
+      e.altKey
+    ) {
+      return;
+    }
+    e.preventDefault();
+    navigateWithTransition(router, href);
+  };
+
+  const handlePrefetch = () => {
+    void skillsApi.prefetch(skill.name);
+  };
 
   return (
     <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:border-gray-300 dark:hover:border-gray-600 transition-colors animate-fade-in">
@@ -33,7 +57,10 @@ export function SkillListItemComponent({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <Link
-              href={`/skill/${skill.name}`}
+              href={href}
+              onClick={handleNavigate}
+              onMouseEnter={handlePrefetch}
+              onFocus={handlePrefetch}
               className="font-semibold text-gray-900 dark:text-white hover:text-ripple-600 dark:hover:text-ripple-400 transition-colors"
             >
               {skill.display_name}
@@ -79,7 +106,10 @@ export function SkillListItemComponent({
                 {ORIGIN_LABELS[skill.origin_type]}
               </span>
               <Link
-                href={`/skill/${skill.name}`}
+                href={href}
+                onClick={handleNavigate}
+                onMouseEnter={handlePrefetch}
+                onFocus={handlePrefetch}
                 className="flex items-center gap-0.5 text-xs text-ripple-600 dark:text-ripple-400 hover:underline"
               >
                 View <ChevronRight size={12} />

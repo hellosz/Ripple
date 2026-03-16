@@ -72,8 +72,8 @@ function FileTreeItem({
     <div>
       <button
         onClick={handleClick}
-        className={`w-full flex items-center gap-2 py-1.5 px-2 text-sm rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${
-          isSkillMd ? "text-gray-400" : "text-gray-700 dark:text-gray-300"
+        className={`w-full flex items-center gap-2 py-1.5 px-2 text-sm rounded-lg transition-colors hover:bg-[#efe7fa] ${
+          isSkillMd ? "text-[#9a90ad]" : "text-[#3d3450]"
         }`}
         style={{ paddingLeft: `${depth * 20 + 8}px` }}
       >
@@ -90,16 +90,16 @@ function FileTreeItem({
           size={14}
           className={
             node.type === "directory"
-              ? "text-ripple-500"
-              : "text-gray-400"
+              ? "text-[#7c62b7]"
+              : "text-[#9387ab]"
           }
         />
         <span className="truncate">{node.name}</span>
         {isSkillMd && (
-          <span className="text-xs text-green-500 ml-auto">Displayed above</span>
+          <span className="ml-auto text-xs text-[#0f8a78]">Displayed above</span>
         )}
         {loading && (
-          <span className="text-xs text-gray-400 ml-auto">Loading...</span>
+          <span className="ml-auto text-xs text-[#9387ab]">Loading...</span>
         )}
       </button>
 
@@ -118,7 +118,7 @@ function FileTreeItem({
 
       {expanded && content && !content.is_binary && (
         <div
-          className="ml-8 my-2 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden"
+          className="ml-8 my-2 overflow-hidden rounded-xl border border-[#ddd2ee] bg-white/65"
           style={{ marginLeft: `${depth * 20 + 32}px` }}
         >
           {content.language === "markdown" ? (
@@ -126,7 +126,7 @@ function FileTreeItem({
               <SkillMarkdown content={content.content} />
             </div>
           ) : (
-            <pre className="p-4 text-sm overflow-x-auto bg-gray-50 dark:bg-gray-900">
+            <pre className="overflow-x-auto bg-[#f8f4ff] p-4 text-sm text-[#372d4b]">
               <code>{content.content}</code>
             </pre>
           )}
@@ -152,10 +152,10 @@ function FileTreeItem({
 export function SkillFileBrowser({ slug, files }: SkillFileBrowserProps) {
   return (
     <div className="space-y-2">
-      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+      <h3 className="text-lg font-semibold text-[#201730]">
         Files
       </h3>
-      <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-2">
+      <div className="rounded-2xl border border-[#ddd2ee] bg-[linear-gradient(180deg,#fffdfd_0%,#f6f0ff_100%)] p-2 shadow-sm">
         {files.map((node) => (
           <FileTreeItem key={node.path} node={node} slug={slug} />
         ))}

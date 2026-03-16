@@ -10,6 +10,7 @@ export function RippleLogo({ height = 28 }: RippleLogoProps) {
 
   return (
     <svg
+      className="block self-center"
       width={width}
       height={height}
       viewBox="0 0 140 32"

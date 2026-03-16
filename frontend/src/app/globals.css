@@ -19,6 +19,10 @@ body {
   min-height: 100vh;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 /* Ripple animation for RP visualization */
 @keyframes ripple-expand {
   0% {

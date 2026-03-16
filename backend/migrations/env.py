@@ -13,6 +13,14 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
+
+def get_sync_database_url() -> str:
+    database_url = os.getenv("DATABASE_URL") or config.get_main_option("sqlalchemy.url")
+    return database_url.replace("+asyncpg", "+psycopg2")
+
+
+config.set_main_option("sqlalchemy.url", get_sync_database_url())
+
 target_metadata = Base.metadata
 
 
