@@ -29,6 +29,7 @@
     "cli:pack": "cd cli && pnpm pack"
   },
   "devDependencies": {
+    "@fission-ai/openspec": "^1.2.0",
     "@playwright/test": "^1.58.2",
     "chrome-devtools-mcp": "^0.20.0",
     "playwright": "^1.58.2"
