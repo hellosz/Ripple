@@ -3,9 +3,9 @@ from datetime import datetime, timezone
 from uuid import UUID
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, true
 from app.models.ripple import Ripple, RipplePush, PushStatusEnum
-from app.models.interaction import UserSkillDownload
+from app.models.interaction import UserSkillLike, UserSkillCopy
 from app.models.user import User, UserStatusEnum
 from app.models.skill import Skill
 from app.services.notification_service import is_user_online, push_to_user
@@ -18,14 +18,19 @@ async def create_ripple(
     comment: Optional[str] = None,
 ) -> Optional[Ripple]:
     """Create a ripple and push to random users."""
-    # Check user has downloaded this skill
-    dl = await db.execute(
-        select(UserSkillDownload).where(
-            UserSkillDownload.user_id == sender_id,
-            UserSkillDownload.skill_id == skill_id,
+    copy_result = await db.execute(
+        select(UserSkillCopy).where(
+            UserSkillCopy.user_id == sender_id,
+            UserSkillCopy.skill_id == skill_id,
         )
     )
-    if not dl.scalar_one_or_none():
+    like_result = await db.execute(
+        select(UserSkillLike).where(
+            UserSkillLike.user_id == sender_id,
+            UserSkillLike.skill_id == skill_id,
+        )
+    )
+    if not copy_result.scalar_one_or_none() or not like_result.scalar_one_or_none():
         return None
 
     # Check not already rippled
@@ -45,10 +50,16 @@ async def create_ripple(
 
     # Select random target users (3-7)
     num_targets = random.randint(3, 7)
+    liked_user_ids_result = await db.execute(
+        select(UserSkillLike.user_id).where(UserSkillLike.skill_id == skill_id)
+    )
+    liked_user_ids = {row[0] for row in liked_user_ids_result.fetchall()}
+
     result = await db.execute(
         select(User.id).where(
             User.id != sender_id,
             User.status == UserStatusEnum.active,
+            User.id.not_in(liked_user_ids) if liked_user_ids else true(),
         )
     )
     all_user_ids = [row[0] for row in result.fetchall()]

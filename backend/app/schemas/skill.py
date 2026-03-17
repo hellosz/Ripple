@@ -17,10 +17,12 @@ class SkillListQuery(BaseModel):
 
 
 class SkillStats(BaseModel):
+    copy_count: int = 0
     like_count: int = 0
     download_count: int = 0
     ripple_count: int = 0
     ripple_reach: int = 0
+    copy_size_tier: str = "default"
     like_size_tier: str = "default"
     download_size_tier: str = "default"
     ripple_size_tier: str = "default"
@@ -38,6 +40,11 @@ class SkillListItem(BaseModel):
     version: str
     author: UserBrief
     stats: SkillStats
+    install_command: str
+    download_url: str
+    recommendation: Optional[str] = None
+    ripple_available: bool = False
+    user_copied: bool = False
     user_liked: bool = False
     user_downloaded: bool = False
     user_rippled: bool = False
@@ -77,6 +84,10 @@ class SkillDetail(BaseModel):
     recommendation: Optional[str] = None
     author: UserBrief
     stats: SkillStats
+    install_command: str
+    download_url: str
+    ripple_available: bool = False
+    user_copied: bool = False
     user_liked: bool = False
     user_downloaded: bool = False
     user_rippled: bool = False

@@ -86,7 +86,9 @@ export function SkillListItemComponent({
             <RippleButton
               slug={skill.name}
               rippled={skill.user_rippled}
-              downloaded={skill.user_downloaded}
+              copied={skill.user_copied}
+              liked={skill.user_liked}
+              available={skill.ripple_available}
               sizeTier={skill.stats.ripple_size_tier}
             />
             <LikeButton

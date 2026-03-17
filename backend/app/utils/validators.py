@@ -94,3 +94,11 @@ def extract_zip_to_dir(zip_path: str, target_dir: str) -> str:
     if len(entries) == 1 and os.path.isdir(os.path.join(target_dir, entries[0])):
         return os.path.join(target_dir, entries[0])
     return target_dir
+
+
+def find_skill_root(root_dir: str) -> Optional[str]:
+    """Find the directory that contains SKILL.md inside extracted content."""
+    for current_root, _, files in os.walk(root_dir):
+        if "SKILL.md" in files:
+            return current_root
+    return None

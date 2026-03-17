@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Waves } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { interactions } from "@/lib/api";
@@ -10,7 +10,9 @@ import type { SizeTier } from "@/types";
 interface RippleButtonProps {
   slug: string;
   rippled: boolean;
-  downloaded: boolean;
+  copied: boolean;
+  liked: boolean;
+  available: boolean;
   sizeTier: SizeTier;
   onUpdate?: () => void;
 }
@@ -18,7 +20,9 @@ interface RippleButtonProps {
 export function RippleButton({
   slug,
   rippled,
-  downloaded,
+  copied,
+  liked,
+  available,
   sizeTier,
   onUpdate,
 }: RippleButtonProps) {
@@ -28,8 +32,12 @@ export function RippleButton({
   const iconSize = useIconSize(sizeTier);
   const tierClass = useSizeTierClass(sizeTier);
 
+  useEffect(() => {
+    setIsRippled(rippled);
+  }, [rippled]);
+
   const handleClick = () => {
-    if (!downloaded) return;
+    if (!available) return;
     if (isRippled) return;
 
     requireAuth(async () => {
@@ -50,17 +58,19 @@ export function RippleButton({
   return (
     <button
       onClick={handleClick}
-      disabled={loading || !downloaded || isRippled}
+      disabled={loading || !available || isRippled}
       className={`flex items-center gap-1 p-1.5 rounded-lg transition-all ${
-        !downloaded
+        !available
           ? "text-gray-300 dark:text-gray-600 cursor-not-allowed"
           : isRippled
           ? "text-ripple-500"
           : `${tierClass} hover:bg-gray-100 dark:hover:bg-gray-800`
       }`}
       title={
-        !downloaded
-          ? "Download first to RP"
+        !available
+          ? copied || liked
+            ? "Copy and like are both required before Ripple"
+            : "Copy and like before Ripple"
           : isRippled
           ? "Already Rippled"
           : "Ripple Push"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Heart } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { interactions } from "@/lib/api";
@@ -20,6 +20,10 @@ export function LikeButton({ slug, liked, sizeTier, onUpdate }: LikeButtonProps)
   const [loading, setLoading] = useState(false);
   const iconSize = useIconSize(sizeTier);
   const tierClass = useSizeTierClass(sizeTier);
+
+  useEffect(() => {
+    setIsLiked(liked);
+  }, [liked]);
 
   const handleClick = () => {
     requireAuth(async () => {

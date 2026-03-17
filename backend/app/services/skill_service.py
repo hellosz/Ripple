@@ -6,7 +6,7 @@ from typing import Optional, List, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
 from app.models.skill import Skill, SkillVersion, SkillStatusEnum, RatingEnum
-from app.models.interaction import UserSkillLike, UserSkillDownload
+from app.models.interaction import UserSkillLike, UserSkillDownload, UserSkillCopy
 from app.models.ripple import Ripple, RipplePush
 from app.services.git_service import (
     copy_skill_to_repo,
@@ -16,7 +16,16 @@ from app.services.git_service import (
     get_skills_base_path,
 )
 from app.services.rating_service import rate_skill
-from app.utils.validators import validate_skill_zip, extract_zip_to_dir, get_skill_content_without_frontmatter
+from app.utils.validators import (
+    validate_skill_zip,
+    extract_zip_to_dir,
+    find_skill_root,
+    get_skill_content_without_frontmatter,
+)
+
+
+def build_install_command(skill_name: str) -> str:
+    return f"npx skills add https://github.com/org/ripple --skill {skill_name}"
 
 
 def get_size_tier(count: int) -> str:
@@ -33,6 +42,10 @@ def get_size_tier(count: int) -> str:
 
 
 async def get_skill_stats(skill_id: UUID, db: AsyncSession) -> dict:
+    copy_count = (await db.execute(
+        select(func.count()).select_from(UserSkillCopy).where(UserSkillCopy.skill_id == skill_id)
+    )).scalar() or 0
+
     like_count = (await db.execute(
         select(func.count()).select_from(UserSkillLike).where(UserSkillLike.skill_id == skill_id)
     )).scalar() or 0
@@ -52,10 +65,12 @@ async def get_skill_stats(skill_id: UUID, db: AsyncSession) -> dict:
     )).scalar() or 0
 
     return {
+        "copy_count": copy_count,
         "like_count": like_count,
         "download_count": download_count,
         "ripple_count": ripple_count,
         "ripple_reach": ripple_reach,
+        "copy_size_tier": get_size_tier(copy_count),
         "like_size_tier": get_size_tier(like_count),
         "download_size_tier": get_size_tier(download_count),
         "ripple_size_tier": get_size_tier(ripple_count),
@@ -64,7 +79,20 @@ async def get_skill_stats(skill_id: UUID, db: AsyncSession) -> dict:
 
 async def get_user_interactions(skill_id: UUID, user_id: Optional[UUID], db: AsyncSession) -> dict:
     if not user_id:
-        return {"user_liked": False, "user_downloaded": False, "user_rippled": False}
+        return {
+            "user_copied": False,
+            "user_liked": False,
+            "user_downloaded": False,
+            "user_rippled": False,
+            "ripple_available": False,
+        }
+
+    copied = (await db.execute(
+        select(UserSkillCopy).where(
+            UserSkillCopy.user_id == user_id,
+            UserSkillCopy.skill_id == skill_id,
+        )
+    )).scalar_one_or_none()
 
     liked = (await db.execute(
         select(UserSkillLike).where(
@@ -88,9 +116,11 @@ async def get_user_interactions(skill_id: UUID, user_id: Optional[UUID], db: Asy
     )).scalar_one_or_none()
 
     return {
+        "user_copied": copied is not None,
         "user_liked": liked is not None,
         "user_downloaded": downloaded is not None,
         "user_rippled": rippled is not None,
+        "ripple_available": copied is not None and liked is not None and rippled is None,
     }
 
 
@@ -165,6 +195,8 @@ async def list_skills(
             "origin_type": skill.origin_type.value,
             "version": skill.version,
             "recommendation": skill.recommendation,
+            "install_command": build_install_command(skill.name),
+            "download_url": f"/api/skills/{skill.name}/download",
             "author": {
                 "id": author.id,
                 "nickname": author.nickname,
@@ -219,6 +251,8 @@ async def get_skill_detail(slug: str, db: AsyncSession, user_id: Optional[UUID] 
         "origin_type": skill.origin_type.value,
         "version": skill.version,
         "recommendation": skill.recommendation,
+        "install_command": build_install_command(skill.name),
+        "download_url": f"/api/skills/{skill.name}/download",
         "author": {
             "id": author.id,
             "nickname": author.nickname,
@@ -248,6 +282,7 @@ async def upload_skill(
     author_id: UUID,
     recommendation: str,
     origin_type: str,
+    category: str,
     tags: Optional[List[str]],
     db: AsyncSession,
 ) -> Tuple[Optional[dict], Optional[str]]:
@@ -259,7 +294,8 @@ async def upload_skill(
     name = frontmatter["name"]
     description = frontmatter.get("description", "")
     version = frontmatter.get("version", "1.0.0")
-    category = frontmatter.get("category", "tools")
+    frontmatter_category = frontmatter.get("category", "tools")
+    effective_category = category or frontmatter_category
     fm_tags = frontmatter.get("tags", [])
 
     # Check for duplicate name (different author)
@@ -272,12 +308,15 @@ async def upload_skill(
     tmp_dir = tempfile.mkdtemp()
     try:
         extracted = extract_zip_to_dir(zip_path, tmp_dir)
+        skill_root = find_skill_root(extracted)
+        if not skill_root:
+            return None, "ZIP must contain a SKILL.md file"
 
         # Check for agents directory
-        has_agents = os.path.isdir(os.path.join(extracted, "agents"))
+        has_agents = os.path.isdir(os.path.join(skill_root, "agents"))
 
         # Read SKILL.md content for rating
-        skill_md_path = os.path.join(extracted, "SKILL.md")
+        skill_md_path = os.path.join(skill_root, "SKILL.md")
         with open(skill_md_path, "r", encoding="utf-8") as f:
             content = f.read()
         content_body = get_skill_content_without_frontmatter(content)
@@ -286,11 +325,11 @@ async def upload_skill(
         skill_rating, suggestions = rate_skill(content_body, frontmatter, has_agents)
 
         # Copy to repo
-        copy_skill_to_repo(extracted, category, name)
+        copy_skill_to_repo(skill_root, effective_category, name)
 
         # Git commit
         commit_sha = git_commit_skill(
-            category, name, version,
+            effective_category, name, version,
             f"{'Update' if existing_skill else 'Add'} skill"
         )
 
@@ -302,8 +341,9 @@ async def upload_skill(
             existing_skill.origin_type = origin_type
             existing_skill.rating = skill_rating
             existing_skill.tags = (tags or []) + fm_tags
-            existing_skill.category = category
+            existing_skill.category = effective_category
             existing_skill.display_name = frontmatter.get("display_name", name)
+            existing_skill.git_path = f"skills/{effective_category}/{name}"
             await db.flush()
             skill = existing_skill
         else:
@@ -318,8 +358,8 @@ async def upload_skill(
                 rating=skill_rating,
                 version=version,
                 tags=(tags or []) + fm_tags,
-                category=category,
-                git_path=f"skills/{category}/{name}",
+                category=effective_category,
+                git_path=f"skills/{effective_category}/{name}",
             )
             db.add(skill)
             await db.flush()
@@ -342,6 +382,8 @@ async def upload_skill(
             "name": skill.name,
             "rating": skill_rating.value,
             "version": version,
+            "install_command": build_install_command(skill.name),
+            "download_url": f"/api/skills/{skill.name}/download",
             "suggestions": suggestions if suggestions else None,
         }, None
 

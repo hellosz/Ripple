@@ -99,6 +99,14 @@ export const skills = {
     return pending;
   },
   peek: (slug: string) => skillDetailCache.get(slug) ?? null,
+  refresh: async (slug: string) => {
+    skillDetailCache.delete(slug);
+    skillDetailPending.delete(slug);
+    return request<any>(`/skills/${slug}`).then((data) => {
+      skillDetailCache.set(slug, data);
+      return data;
+    });
+  },
   prefetch: async (slug: string) => {
     if (skillDetailCache.has(slug)) {
       return skillDetailCache.get(slug);
@@ -120,10 +128,18 @@ export const skills = {
       method: "PATCH",
       body: JSON.stringify({ status }),
     }),
+  comments: (slug: string) => request<any[]>(`/skills/${slug}/comments`),
+  createComment: (slug: string, data: { content: string; parent_id?: string | null }) =>
+    request<any>(`/skills/${slug}/comments`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 };
 
 // Interactions
 export const interactions = {
+  copy: (slug: string) =>
+    request<any>(`/skills/${slug}/copy`, { method: "POST" }),
   like: (slug: string) =>
     request<any>(`/skills/${slug}/like`, { method: "POST" }),
   unlike: (slug: string) =>

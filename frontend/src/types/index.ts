@@ -20,10 +20,12 @@ export interface UserBrief {
 }
 
 export interface SkillStats {
+  copy_count: number;
   like_count: number;
   download_count: number;
   ripple_count: number;
   ripple_reach: number;
+  copy_size_tier: SizeTier;
   like_size_tier: SizeTier;
   download_size_tier: SizeTier;
   ripple_size_tier: SizeTier;
@@ -42,8 +44,12 @@ export interface SkillListItem {
   origin_type: OriginType;
   version: string;
   recommendation: string | null;
+  install_command: string;
+  download_url: string;
   author: UserBrief;
   stats: SkillStats;
+  ripple_available: boolean;
+  user_copied: boolean;
   user_liked: boolean;
   user_downloaded: boolean;
   user_rippled: boolean;
@@ -63,6 +69,17 @@ export interface SkillVersion {
   changelog: string | null;
   rating: Rating | null;
   created_at: string;
+}
+
+export interface SkillComment {
+  id: string;
+  skill_id: string;
+  parent_id: string | null;
+  content: string;
+  author: UserBrief;
+  children: SkillComment[];
+  created_at: string;
+  updated_at: string;
 }
 
 export interface FileTreeNode {

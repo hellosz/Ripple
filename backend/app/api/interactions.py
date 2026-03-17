@@ -5,10 +5,10 @@ from app.database import get_db
 from app.middleware.auth import get_current_user, get_optional_user
 from app.models.user import User
 from app.models.skill import Skill
-from app.models.interaction import UserSkillLike, UserSkillDownload
+from app.models.interaction import UserSkillLike, UserSkillDownload, UserSkillCopy
 from app.models.ripple import Ripple
 from app.services.ripple_service import create_ripple
-from app.services.skill_service import get_skill_stats
+from app.services.skill_service import get_skill_stats, get_user_interactions, build_install_command
 from app.schemas.ripple import RippleCreateRequest
 from typing import Optional
 
@@ -83,15 +83,9 @@ async def ripple_skill(
     if not skill:
         raise HTTPException(status_code=404, detail="Skill not found")
 
-    # Check if downloaded
-    dl = await db.execute(
-        select(UserSkillDownload).where(
-            UserSkillDownload.user_id == user.id,
-            UserSkillDownload.skill_id == skill.id,
-        )
-    )
-    if not dl.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="You must download the skill before RP")
+    interactions = await get_user_interactions(skill.id, user.id, db)
+    if not interactions["ripple_available"]:
+        raise HTTPException(status_code=400, detail="You must copy and like the skill before RP")
 
     ripple = await create_ripple(skill.id, user.id, db, req.comment)
     if not ripple:
@@ -120,3 +114,40 @@ async def get_stats(
         stats.update(interactions)
 
     return stats
+
+
+@router.post("/{slug}/copy")
+async def copy_skill_command(
+    slug: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(Skill).where(Skill.name == slug))
+    skill = result.scalar_one_or_none()
+    if not skill:
+        raise HTTPException(status_code=404, detail="Skill not found")
+
+    existing = await db.execute(
+        select(UserSkillCopy).where(
+            UserSkillCopy.user_id == user.id,
+            UserSkillCopy.skill_id == skill.id,
+        )
+    )
+    copy = existing.scalar_one_or_none()
+    if not copy:
+        copy = UserSkillCopy(
+            user_id=user.id,
+            skill_id=skill.id,
+            command=build_install_command(skill.name),
+        )
+        db.add(copy)
+        await db.flush()
+
+    stats = await get_skill_stats(skill.id, db)
+    interactions = await get_user_interactions(skill.id, user.id, db)
+    return {
+        "message": "Copied",
+        "command": build_install_command(skill.name),
+        "stats": stats,
+        **interactions,
+    }

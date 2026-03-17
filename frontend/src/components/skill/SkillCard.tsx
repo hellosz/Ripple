@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Eye, Heart, Copy, Download } from "lucide-react";
 import type { SkillListItem } from "@/types";
-import { skills as skillsApi } from "@/lib/api";
+import { interactions, skills as skillsApi } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { CATEGORY_LABELS } from "@/lib/utils";
 import { SkillPreviewModal } from "./SkillPreviewModal";
 import { navigateWithTransition } from "@/lib/navigation";
@@ -17,6 +18,7 @@ interface SkillCardProps {
 
 export function SkillCard({ skill, index }: SkillCardProps) {
   const [showPreview, setShowPreview] = useState(false);
+  const { requireAuth } = useAuth();
   const router = useRouter();
   const href = `/skill/${skill.name}`;
 
@@ -26,7 +28,14 @@ export function SkillCard({ skill, index }: SkillCardProps) {
 
   const handleCopy = (e: React.MouseEvent) => {
     e.preventDefault();
-    navigator.clipboard.writeText(`npx ripple install ${skill.name}`);
+    void navigator.clipboard.writeText(skill.install_command);
+    requireAuth(async () => {
+      try {
+        await interactions.copy(skill.name);
+      } catch {
+        // Ignore interaction persistence failures from the list card.
+      }
+    });
   };
 
   const handleNavigate = (e: React.MouseEvent<HTMLAnchorElement>) => {

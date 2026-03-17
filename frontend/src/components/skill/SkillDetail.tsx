@@ -9,6 +9,7 @@ import { SkillMarkdown } from "./SkillMarkdown";
 import { SkillFileBrowser } from "./SkillFileBrowser";
 import { SkillInstallCommand } from "./SkillInstallCommand";
 import { SkillVersionHistory } from "./SkillVersionHistory";
+import { SkillComments } from "./SkillComments";
 import { LikeButton } from "@/components/interaction/LikeButton";
 import { DownloadButton } from "@/components/interaction/DownloadButton";
 import { RippleButton } from "@/components/interaction/RippleButton";
@@ -50,13 +51,18 @@ function TypingText({ text }: { text: string }) {
 }
 
 export function SkillDetailComponent({ skill }: SkillDetailComponentProps) {
+  const [localSkill, setLocalSkill] = useState(skill);
   const [files, setFiles] = useState<FileTreeNode[]>([]);
   const [activeHeadingId, setActiveHeadingId] = useState<string>("");
-  const headings = skill.content ? extractMarkdownHeadings(skill.content) : [];
+  const headings = localSkill.content ? extractMarkdownHeadings(localSkill.content) : [];
 
   useEffect(() => {
-    skillsApi.getFiles(skill.name).then(setFiles).catch(() => {});
-  }, [skill.name]);
+    setLocalSkill(skill);
+  }, [skill]);
+
+  useEffect(() => {
+    skillsApi.getFiles(localSkill.name).then(setFiles).catch(() => {});
+  }, [localSkill.name]);
 
   useEffect(() => {
     if (!headings.length) return;
@@ -93,6 +99,11 @@ export function SkillDetailComponent({ skill }: SkillDetailComponentProps) {
     await navigator.clipboard.writeText(window.location.href);
   };
 
+  const refreshSkill = async () => {
+    const latest = await skillsApi.refresh(localSkill.name);
+    setLocalSkill(latest);
+  };
+
   const handleTocClick = (event: React.MouseEvent<HTMLAnchorElement>, id: string) => {
     event.preventDefault();
     const element = document.getElementById(id);
@@ -104,7 +115,7 @@ export function SkillDetailComponent({ skill }: SkillDetailComponentProps) {
   };
 
   const categoryLabel =
-    CATEGORY_LABELS[skill.category || ""] || skill.category || "Other";
+    CATEGORY_LABELS[localSkill.category || ""] || localSkill.category || "Other";
 
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_240px]">
@@ -121,20 +132,25 @@ export function SkillDetailComponent({ skill }: SkillDetailComponentProps) {
         </Link>
         <div className="flex items-center gap-2">
           <RippleButton
-            slug={skill.name}
-            rippled={skill.user_rippled}
-            downloaded={skill.user_downloaded}
-            sizeTier={skill.stats.ripple_size_tier}
+            slug={localSkill.name}
+            rippled={localSkill.user_rippled}
+            copied={localSkill.user_copied}
+            liked={localSkill.user_liked}
+            available={localSkill.ripple_available}
+            sizeTier={localSkill.stats.ripple_size_tier}
+            onUpdate={refreshSkill}
           />
           <LikeButton
-            slug={skill.name}
-            liked={skill.user_liked}
-            sizeTier={skill.stats.like_size_tier}
+            slug={localSkill.name}
+            liked={localSkill.user_liked}
+            sizeTier={localSkill.stats.like_size_tier}
+            onUpdate={refreshSkill}
           />
           <DownloadButton
-            slug={skill.name}
-            downloaded={skill.user_downloaded}
-            sizeTier={skill.stats.download_size_tier}
+            slug={localSkill.name}
+            downloaded={localSkill.user_downloaded}
+            sizeTier={localSkill.stats.download_size_tier}
+            onUpdate={refreshSkill}
           />
           <button
             onClick={handleShare}
@@ -149,16 +165,16 @@ export function SkillDetailComponent({ skill }: SkillDetailComponentProps) {
       {/* Title Section */}
       <div>
         <div className="flex items-center gap-2 mb-2">
-          <SkillRating rating={skill.rating} size="md" />
+          <SkillRating rating={localSkill.rating} size="md" />
           <span className="text-xs text-[#7d7391]">
-            {ORIGIN_LABELS[skill.origin_type]}
+            {ORIGIN_LABELS[localSkill.origin_type]}
           </span>
         </div>
         <h1 className="text-2xl font-bold text-[#201730]">
-          {skill.display_name}
+          {localSkill.display_name}
         </h1>
         <div className="flex flex-wrap gap-2 mt-2">
-          {skill.tags?.map((tag) => (
+          {localSkill.tags?.map((tag) => (
             <span
               key={tag}
               className="rounded-full border border-[#d8cde9] bg-white/80 px-2 py-0.5 text-xs text-[#665d7b]"
@@ -168,28 +184,33 @@ export function SkillDetailComponent({ skill }: SkillDetailComponentProps) {
           ))}
         </div>
         <p className="mt-2 text-[#5b536d]">
-          {skill.description}
+          {localSkill.description}
         </p>
       </div>
 
       {/* Author recommendation */}
-      {skill.recommendation && (
+      {localSkill.recommendation && (
         <div className="flex items-start gap-3 rounded-2xl border border-[#d9c7f0] bg-[linear-gradient(180deg,#ffffff_0%,#f6efff_100%)] p-4 shadow-sm">
-          <UserAvatar user={skill.author} size={40} />
+          <UserAvatar user={localSkill.author} size={40} />
           <div className="flex-1">
             <div className="text-sm font-medium text-[#201730]">
-              {skill.author.nickname || skill.author.email.split("@")[0]}
+              {localSkill.author.nickname || localSkill.author.email.split("@")[0]}
             </div>
             <div className="relative mt-1 rounded-xl border border-[#e5daf4] bg-[#fffdfd] p-3 text-sm text-[#5b536d] shadow-sm">
               <div className="absolute -left-2 top-3 h-0 w-0 border-b-[6px] border-b-transparent border-r-[8px] border-r-[#fffdfd] border-t-[6px] border-t-transparent" />
-              <TypingText text={skill.recommendation} />
+              <TypingText text={localSkill.recommendation} />
             </div>
           </div>
         </div>
       )}
 
       {/* Install command */}
-      <SkillInstallCommand skillName={skill.name} />
+      <SkillInstallCommand
+        skillName={localSkill.name}
+        installCommand={localSkill.install_command}
+        copied={localSkill.user_copied}
+        onCopied={refreshSkill}
+      />
 
       {/* Summary */}
       <div className="flex flex-wrap gap-4 text-sm">
@@ -202,19 +223,19 @@ export function SkillDetailComponent({ skill }: SkillDetailComponentProps) {
         <div>
           <span className="text-[#7d7391]">Version: </span>
           <span className="font-medium text-[#201730]">
-            v{skill.version}
+            v{localSkill.version}
           </span>
         </div>
       </div>
 
       {/* Markdown Content */}
-      {skill.content && (
+      {localSkill.content && (
         <div className="border-t border-[#ddd2ee] pt-6">
           <h2 className="mb-4 text-lg font-semibold text-[#201730]">
             Skill Content
           </h2>
           <div className="rounded-3xl border border-[#ddd2ee] bg-[linear-gradient(180deg,#fffdfd_0%,#f7f2fd_100%)] px-6 py-6 shadow-[0_18px_48px_rgba(76,44,128,0.12)]">
-            <SkillMarkdown content={skill.content} />
+            <SkillMarkdown content={localSkill.content} />
           </div>
         </div>
       )}
@@ -222,16 +243,18 @@ export function SkillDetailComponent({ skill }: SkillDetailComponentProps) {
       {/* File Browser */}
       {files.length > 0 && (
         <div className="border-t border-[#ddd2ee] pt-6">
-          <SkillFileBrowser slug={skill.name} files={files} />
+          <SkillFileBrowser slug={localSkill.name} files={files} />
         </div>
       )}
 
       {/* Version History */}
-      {skill.versions.length > 0 && (
+      {localSkill.versions.length > 0 && (
         <div className="border-t border-[#ddd2ee] pt-6">
-          <SkillVersionHistory versions={skill.versions} />
+          <SkillVersionHistory versions={localSkill.versions} />
         </div>
       )}
+
+      <SkillComments slug={localSkill.name} />
         </div>
       </div>
 

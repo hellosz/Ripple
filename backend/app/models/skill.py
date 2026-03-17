@@ -50,8 +50,10 @@ class Skill(Base):
     author = relationship("User", back_populates="skills")
     versions = relationship("SkillVersion", back_populates="skill", order_by="SkillVersion.created_at.desc()")
     likes = relationship("UserSkillLike", back_populates="skill")
+    copies = relationship("UserSkillCopy", back_populates="skill")
     downloads = relationship("UserSkillDownload", back_populates="skill")
     ripples = relationship("Ripple", back_populates="skill")
+    comments = relationship("SkillComment", back_populates="skill", cascade="all, delete-orphan")
 
 
 class SkillVersion(Base):

@@ -10,6 +10,8 @@ from app.schemas.skill import SkillListResponse, SkillDetail, FileTreeNode, File
 from app.middleware.auth import get_current_user, get_optional_user
 from app.models.user import User
 from app.models.skill import Skill, SkillStatusEnum
+from app.models.comment import SkillComment
+from app.schemas.comment import SkillCommentCreateRequest, SkillCommentResponse
 from app.services.skill_service import list_skills, get_skill_detail, upload_skill, get_skill_stats
 from app.services.git_service import get_file_tree, get_file_content, create_skill_zip
 
@@ -158,6 +160,7 @@ async def download_skill(
 @router.post("", response_model=SkillUploadResponse)
 async def create_skill(
     file: UploadFile = File(...),
+    category: str = Form(...),
     recommendation: str = Form(...),
     origin_type: str = Form(...),
     tags: Optional[str] = Form(None),
@@ -182,6 +185,7 @@ async def create_skill(
             author_id=user.id,
             recommendation=recommendation,
             origin_type=origin_type,
+            category=category.strip(),
             tags=tag_list,
             db=db,
         )
@@ -198,6 +202,7 @@ async def create_skill(
 async def update_skill(
     slug: str,
     file: UploadFile = File(...),
+    category: str = Form(...),
     recommendation: str = Form(...),
     origin_type: str = Form(...),
     tags: Optional[str] = Form(None),
@@ -229,6 +234,7 @@ async def update_skill(
             author_id=user.id,
             recommendation=recommendation,
             origin_type=origin_type,
+            category=category.strip(),
             tags=tag_list,
             db=db,
         )
@@ -278,3 +284,110 @@ async def update_skill_status(
     skill.status = SkillStatusEnum(new_status)
     await db.flush()
     return {"message": f"Skill status updated to {new_status}"}
+
+
+def serialize_comment_tree(comment: SkillComment, users: dict, children_map: dict) -> dict:
+    author = users[comment.author_id]
+    return {
+        "id": comment.id,
+        "skill_id": comment.skill_id,
+        "parent_id": comment.parent_id,
+        "content": comment.content,
+        "author": {
+            "id": author.id,
+            "nickname": author.nickname,
+            "avatar_url": author.avatar_url,
+            "email": author.email,
+        },
+        "children": [
+            serialize_comment_tree(child, users, children_map)
+            for child in children_map.get(comment.id, [])
+        ],
+        "created_at": comment.created_at,
+        "updated_at": comment.updated_at,
+    }
+
+
+@router.get("/{slug}/comments", response_model=List[SkillCommentResponse])
+async def get_skill_comments(
+    slug: str,
+    db: AsyncSession = Depends(get_db),
+):
+    skill_result = await db.execute(select(Skill).where(Skill.name == slug))
+    skill = skill_result.scalar_one_or_none()
+    if not skill:
+        raise HTTPException(status_code=404, detail="Skill not found")
+
+    result = await db.execute(
+        select(SkillComment)
+        .where(SkillComment.skill_id == skill.id)
+        .order_by(SkillComment.created_at.asc())
+    )
+    comments = result.scalars().all()
+    if not comments:
+        return []
+
+    author_ids = {comment.author_id for comment in comments}
+    users_result = await db.execute(select(User).where(User.id.in_(author_ids)))
+    users = {user.id: user for user in users_result.scalars().all()}
+
+    children_map: dict = {}
+    roots: list[SkillComment] = []
+    for comment in comments:
+        if comment.parent_id:
+            children_map.setdefault(comment.parent_id, []).append(comment)
+        else:
+            roots.append(comment)
+
+    return [serialize_comment_tree(comment, users, children_map) for comment in roots]
+
+
+@router.post("/{slug}/comments", response_model=SkillCommentResponse, status_code=status.HTTP_201_CREATED)
+async def create_skill_comment(
+    slug: str,
+    payload: SkillCommentCreateRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    skill_result = await db.execute(select(Skill).where(Skill.name == slug))
+    skill = skill_result.scalar_one_or_none()
+    if not skill:
+        raise HTTPException(status_code=404, detail="Skill not found")
+
+    parent_comment = None
+    if payload.parent_id:
+        parent_result = await db.execute(
+            select(SkillComment).where(
+                SkillComment.id == payload.parent_id,
+                SkillComment.skill_id == skill.id,
+            )
+        )
+        parent_comment = parent_result.scalar_one_or_none()
+        if not parent_comment:
+            raise HTTPException(status_code=400, detail="Parent comment not found")
+
+    comment = SkillComment(
+        skill_id=skill.id,
+        author_id=user.id,
+        parent_id=parent_comment.id if parent_comment else None,
+        content=payload.content.strip(),
+    )
+    db.add(comment)
+    await db.flush()
+    await db.refresh(comment)
+
+    return {
+        "id": comment.id,
+        "skill_id": comment.skill_id,
+        "parent_id": comment.parent_id,
+        "content": comment.content,
+        "author": {
+            "id": user.id,
+            "nickname": user.nickname,
+            "avatar_url": user.avatar_url,
+            "email": user.email,
+        },
+        "children": [],
+        "created_at": comment.created_at,
+        "updated_at": comment.updated_at,
+    }

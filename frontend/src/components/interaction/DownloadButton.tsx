@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Download } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useIconSize, useSizeTierClass } from "@/hooks/useSkillStats";
@@ -24,6 +24,10 @@ export function DownloadButton({
   const [loading, setLoading] = useState(false);
   const iconSize = useIconSize(sizeTier);
   const tierClass = useSizeTierClass(sizeTier);
+
+  useEffect(() => {
+    setIsDownloaded(downloaded);
+  }, [downloaded]);
 
   const handleClick = () => {
     requireAuth(async () => {

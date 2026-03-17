@@ -43,6 +43,8 @@ class User(Base):
     # Relationships
     skills = relationship("Skill", back_populates="author")
     likes = relationship("UserSkillLike", back_populates="user")
+    copies = relationship("UserSkillCopy", back_populates="user")
     downloads = relationship("UserSkillDownload", back_populates="user")
     ripples_sent = relationship("Ripple", back_populates="sender")
     ripple_pushes_received = relationship("RipplePush", back_populates="target_user")
+    comments = relationship("SkillComment", back_populates="author")
