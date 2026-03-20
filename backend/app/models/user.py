@@ -47,4 +47,5 @@ class User(Base):
     downloads = relationship("UserSkillDownload", back_populates="user")
     ripples_sent = relationship("Ripple", back_populates="sender")
     ripple_pushes_received = relationship("RipplePush", back_populates="target_user")
+    guest_sessions = relationship("GuestSession", back_populates="claimed_user")
     comments = relationship("SkillComment", back_populates="author")

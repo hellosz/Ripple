@@ -6,9 +6,13 @@ from app.middleware.auth import get_current_user, get_optional_user
 from app.models.user import User
 from app.models.skill import Skill
 from app.models.interaction import UserSkillLike, UserSkillDownload, UserSkillCopy
-from app.models.ripple import Ripple
 from app.services.ripple_service import create_ripple
-from app.services.skill_service import get_skill_stats, get_user_interactions, build_install_command
+from app.services.skill_service import (
+    build_upload_metadata,
+    get_current_version_record,
+    get_skill_stats,
+    get_user_interactions,
+)
 from app.schemas.ripple import RippleCreateRequest
 from typing import Optional
 
@@ -127,6 +131,8 @@ async def copy_skill_command(
     if not skill:
         raise HTTPException(status_code=404, detail="Skill not found")
 
+    version_record = await get_current_version_record(skill, db)
+    upload_metadata = build_upload_metadata(skill, version_record)
     existing = await db.execute(
         select(UserSkillCopy).where(
             UserSkillCopy.user_id == user.id,
@@ -138,7 +144,7 @@ async def copy_skill_command(
         copy = UserSkillCopy(
             user_id=user.id,
             skill_id=skill.id,
-            command=build_install_command(skill.name),
+            command=upload_metadata["install_command"],
         )
         db.add(copy)
         await db.flush()
@@ -147,7 +153,7 @@ async def copy_skill_command(
     interactions = await get_user_interactions(skill.id, user.id, db)
     return {
         "message": "Copied",
-        "command": build_install_command(skill.name),
+        "command": upload_metadata["install_command"],
         "stats": stats,
         **interactions,
     }

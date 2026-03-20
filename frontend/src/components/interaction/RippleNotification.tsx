@@ -8,11 +8,13 @@ import type { Notification } from "@/types";
 interface RippleNotificationProps {
   notification: Notification;
   onDismiss: () => void;
+  onOpenRipple?: (notification: Notification) => void;
 }
 
 export function RippleNotification({
   notification,
   onDismiss,
+  onOpenRipple,
 }: RippleNotificationProps) {
   const isRipple = notification.type === "ripple";
 
@@ -76,13 +78,25 @@ export function RippleNotification({
         </div>
 
         <div className="flex gap-2 mt-3">
-          <Link
-            href={`/skill/${isRipple ? notification.skill_slug : notification.skill_slug}`}
-            className="flex-1 text-center text-sm py-1.5 rounded-lg bg-ripple-50 dark:bg-ripple-950 text-ripple-600 dark:text-ripple-400 hover:bg-ripple-100 dark:hover:bg-ripple-900 transition-colors"
-            onClick={onDismiss}
-          >
-            View
-          </Link>
+          {isRipple ? (
+            <button
+              onClick={() => {
+                onOpenRipple?.(notification);
+                onDismiss();
+              }}
+              className="flex-1 text-center text-sm py-1.5 rounded-lg bg-ripple-50 dark:bg-ripple-950 text-ripple-600 dark:text-ripple-400 hover:bg-ripple-100 dark:hover:bg-ripple-900 transition-colors"
+            >
+              Open Ripple
+            </button>
+          ) : (
+            <Link
+              href={`/skill/${notification.skill_slug}`}
+              className="flex-1 text-center text-sm py-1.5 rounded-lg bg-ripple-50 dark:bg-ripple-950 text-ripple-600 dark:text-ripple-400 hover:bg-ripple-100 dark:hover:bg-ripple-900 transition-colors"
+              onClick={onDismiss}
+            >
+              View
+            </Link>
+          )}
           <button
             onClick={onDismiss}
             className="flex-1 text-center text-sm py-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"

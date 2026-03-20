@@ -207,7 +207,7 @@ export function SkillDetailComponent({ skill }: SkillDetailComponentProps) {
       {/* Install command */}
       <SkillInstallCommand
         skillName={localSkill.name}
-        installCommand={localSkill.install_command}
+        installCommand={localSkill.upload_metadata.install_command}
         copied={localSkill.user_copied}
         onCopied={refreshSkill}
       />
@@ -224,6 +224,12 @@ export function SkillDetailComponent({ skill }: SkillDetailComponentProps) {
           <span className="text-[#7d7391]">Version: </span>
           <span className="font-medium text-[#201730]">
             v{localSkill.version}
+          </span>
+        </div>
+        <div>
+          <span className="text-[#7d7391]">Package: </span>
+          <span className="font-medium text-[#201730]">
+            {localSkill.upload_metadata.package_ready ? "Uploaded ZIP" : "Generated from repo"}
           </span>
         </div>
       </div>

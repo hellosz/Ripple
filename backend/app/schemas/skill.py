@@ -28,6 +28,25 @@ class SkillStats(BaseModel):
     ripple_size_tier: str = "default"
 
 
+class SkillUploadMetadata(BaseModel):
+    category: Optional[str] = None
+    recommendation: Optional[str] = None
+    origin_type: str
+    install_command: str
+    package_file_name: Optional[str] = None
+    package_checksum: Optional[str] = None
+    package_ready: bool = False
+    download_source: str = "generated_repository_archive"
+
+
+class SkillEngagementState(BaseModel):
+    copied_at: Optional[datetime] = None
+    liked_at: Optional[datetime] = None
+    downloaded_at: Optional[datetime] = None
+    rippled_at: Optional[datetime] = None
+    ripple_available: bool = False
+
+
 class SkillListItem(BaseModel):
     id: UUID
     name: str
@@ -40,6 +59,8 @@ class SkillListItem(BaseModel):
     version: str
     author: UserBrief
     stats: SkillStats
+    upload_metadata: SkillUploadMetadata
+    engagement_state: SkillEngagementState
     install_command: str
     download_url: str
     recommendation: Optional[str] = None
@@ -84,6 +105,8 @@ class SkillDetail(BaseModel):
     recommendation: Optional[str] = None
     author: UserBrief
     stats: SkillStats
+    upload_metadata: SkillUploadMetadata
+    engagement_state: SkillEngagementState
     install_command: str
     download_url: str
     ripple_available: bool = False

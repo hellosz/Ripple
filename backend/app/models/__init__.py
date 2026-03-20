@@ -1,7 +1,7 @@
 from app.models.user import User
 from app.models.skill import Skill, SkillVersion
 from app.models.interaction import UserSkillLike, UserSkillDownload, UserSkillCopy
-from app.models.ripple import Ripple, RipplePush
+from app.models.ripple import Ripple, RipplePush, GuestSession
 from app.models.comment import SkillComment
 
 __all__ = [
@@ -13,5 +13,6 @@ __all__ = [
     "UserSkillDownload",
     "Ripple",
     "RipplePush",
+    "GuestSession",
     "SkillComment",
 ]

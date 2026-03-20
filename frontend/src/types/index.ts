@@ -33,6 +33,25 @@ export interface SkillStats {
 
 export type SizeTier = "default" | "small" | "medium" | "large" | "xlarge";
 
+export interface SkillUploadMetadata {
+  category: string | null;
+  recommendation: string | null;
+  origin_type: OriginType;
+  install_command: string;
+  package_file_name: string | null;
+  package_checksum: string | null;
+  package_ready: boolean;
+  download_source: "uploaded_package" | "generated_repository_archive";
+}
+
+export interface SkillEngagementState {
+  copied_at: string | null;
+  liked_at: string | null;
+  downloaded_at: string | null;
+  rippled_at: string | null;
+  ripple_available: boolean;
+}
+
 export interface SkillListItem {
   id: string;
   name: string;
@@ -48,6 +67,8 @@ export interface SkillListItem {
   download_url: string;
   author: UserBrief;
   stats: SkillStats;
+  upload_metadata: SkillUploadMetadata;
+  engagement_state: SkillEngagementState;
   ripple_available: boolean;
   user_copied: boolean;
   user_liked: boolean;
@@ -104,9 +125,9 @@ export type OriginType = "original" | "derivative" | "repost";
 export interface RipplePush {
   id: string;
   target_user: UserBrief;
-  status: "pending" | "delivered" | "viewed" | "dismissed";
-  delivered_at: string | null;
-  viewed_at: string | null;
+  status: "pending" | "shown" | "consumed" | "dismissed";
+  shown_at: string | null;
+  consumed_at: string | null;
 }
 
 export interface RippleRecord {
@@ -121,8 +142,10 @@ export interface RippleRecord {
 
 export interface RippleNotification {
   type: "ripple";
+  delivery_id: string;
   ripple_id: string;
   skill_name: string;
+  skill_display_name: string;
   skill_slug: string;
   sender: UserBrief;
   comment?: string;

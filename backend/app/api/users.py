@@ -140,6 +140,8 @@ async def get_my_ripples(
 
         push_details = []
         for push in pushes:
+            if push.target_user_id is None:
+                continue
             target_result = await db.execute(select(User).where(User.id == push.target_user_id))
             target = target_result.scalar_one_or_none()
             if target:
@@ -152,8 +154,8 @@ async def get_my_ripples(
                         "email": target.email,
                     },
                     "status": push.status.value,
-                    "delivered_at": push.delivered_at,
-                    "viewed_at": push.viewed_at,
+                    "shown_at": push.shown_at,
+                    "consumed_at": push.consumed_at,
                 })
 
         items.append({

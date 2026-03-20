@@ -8,7 +8,10 @@ import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { LoginModal } from "@/components/user/LoginModal";
 import { RippleNotification } from "@/components/interaction/RippleNotification";
+import { RippleRevealModal } from "@/components/interaction/RippleRevealModal";
 import { useSSE } from "@/hooks/useSSE";
+import { useState } from "react";
+import type { RippleNotification as RippleNotificationType } from "@/types";
 
 export default function RootLayout({
   children,
@@ -17,6 +20,7 @@ export default function RootLayout({
 }) {
   const authState = useAuthProvider();
   const { notifications, dismiss } = useSSE();
+  const [activeRipple, setActiveRipple] = useState<RippleNotificationType | null>(null);
 
   return (
     <html lang="zh-CN">
@@ -55,9 +59,23 @@ export default function RootLayout({
                 key={index}
                 notification={notification}
                 onDismiss={() => dismiss(index)}
+                onOpenRipple={(incoming) => {
+                  if (incoming.type === "ripple") {
+                    setActiveRipple(incoming);
+                  }
+                }}
               />
             ))}
           </div>
+
+          <AnimatePresence>
+            {activeRipple && (
+              <RippleRevealModal
+                notification={activeRipple}
+                onClose={() => setActiveRipple(null)}
+              />
+            )}
+          </AnimatePresence>
         </AuthContext.Provider>
       </body>
     </html>

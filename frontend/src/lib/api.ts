@@ -1,3 +1,5 @@
+import { getGuestSessionKey } from "./auth";
+
 const API_BASE = "/api";
 const skillDetailCache = new Map<string, any>();
 const skillDetailPending = new Map<string, Promise<any>>();
@@ -15,9 +17,13 @@ async function request<T>(
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
   };
+  const guestSessionKey = getGuestSessionKey();
 
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
+  }
+  if (guestSessionKey) {
+    headers["X-Ripple-Guest-Session"] = guestSessionKey;
   }
 
   // Don't set Content-Type for FormData
@@ -150,6 +156,15 @@ export const interactions = {
       body: JSON.stringify({ comment }),
     }),
   stats: (slug: string) => request<any>(`/skills/${slug}/stats`),
+};
+
+export const ripples = {
+  touchGuestSession: () =>
+    request<any>("/ripples/guest-session/touch", { method: "POST" }),
+  consumeDelivery: (deliveryId: string) =>
+    request<any>(`/ripples/deliveries/${deliveryId}/consume`, {
+      method: "POST",
+    }),
 };
 
 // Admin

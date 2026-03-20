@@ -12,7 +12,15 @@ from app.models.user import User
 from app.models.skill import Skill, SkillStatusEnum
 from app.models.comment import SkillComment
 from app.schemas.comment import SkillCommentCreateRequest, SkillCommentResponse
-from app.services.skill_service import list_skills, get_skill_detail, upload_skill, get_skill_stats
+from app.services.comment_service import build_comment_threads
+from app.services.skill_service import (
+    list_skills,
+    get_skill_detail,
+    upload_skill,
+    get_skill_stats,
+    get_current_version_record,
+    resolve_package_storage_path,
+)
 from app.services.git_service import get_file_tree, get_file_content, create_skill_zip
 
 router = APIRouter(prefix="/api/skills", tags=["skills"])
@@ -145,6 +153,23 @@ async def download_skill(
         dl = UserSkillDownload(user_id=user.id, skill_id=skill.id, version=skill.version)
         db.add(dl)
     await db.flush()
+
+    version_record = await get_current_version_record(skill, db)
+    stored_package_path = resolve_package_storage_path(
+        version_record.package_storage_path
+        if version_record and version_record.package_storage_path
+        else skill.package_storage_path
+    )
+    if stored_package_path is not None:
+        return FileResponse(
+            str(stored_package_path),
+            media_type="application/zip",
+            filename=(
+                version_record.package_file_name
+                if version_record and version_record.package_file_name
+                else f"{skill.name}-v{skill.version}.zip"
+            ),
+        )
 
     zip_path = create_skill_zip(skill.category, skill.name)
     if not zip_path:
@@ -285,29 +310,6 @@ async def update_skill_status(
     await db.flush()
     return {"message": f"Skill status updated to {new_status}"}
 
-
-def serialize_comment_tree(comment: SkillComment, users: dict, children_map: dict) -> dict:
-    author = users[comment.author_id]
-    return {
-        "id": comment.id,
-        "skill_id": comment.skill_id,
-        "parent_id": comment.parent_id,
-        "content": comment.content,
-        "author": {
-            "id": author.id,
-            "nickname": author.nickname,
-            "avatar_url": author.avatar_url,
-            "email": author.email,
-        },
-        "children": [
-            serialize_comment_tree(child, users, children_map)
-            for child in children_map.get(comment.id, [])
-        ],
-        "created_at": comment.created_at,
-        "updated_at": comment.updated_at,
-    }
-
-
 @router.get("/{slug}/comments", response_model=List[SkillCommentResponse])
 async def get_skill_comments(
     slug: str,
@@ -330,16 +332,7 @@ async def get_skill_comments(
     author_ids = {comment.author_id for comment in comments}
     users_result = await db.execute(select(User).where(User.id.in_(author_ids)))
     users = {user.id: user for user in users_result.scalars().all()}
-
-    children_map: dict = {}
-    roots: list[SkillComment] = []
-    for comment in comments:
-        if comment.parent_id:
-            children_map.setdefault(comment.parent_id, []).append(comment)
-        else:
-            roots.append(comment)
-
-    return [serialize_comment_tree(comment, users, children_map) for comment in roots]
+    return build_comment_threads(comments, users)
 
 
 @router.post("/{slug}/comments", response_model=SkillCommentResponse, status_code=status.HTTP_201_CREATED)

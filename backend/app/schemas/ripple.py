@@ -13,8 +13,8 @@ class RipplePushResponse(BaseModel):
     id: UUID
     target_user: UserBrief
     status: str
-    delivered_at: Optional[datetime] = None
-    viewed_at: Optional[datetime] = None
+    shown_at: Optional[datetime] = None
+    consumed_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 
@@ -33,8 +33,10 @@ class RippleResponse(BaseModel):
 
 class RippleNotification(BaseModel):
     type: str = "ripple"
+    delivery_id: UUID
     ripple_id: UUID
     skill_name: str
+    skill_display_name: str
     skill_slug: str
     sender: UserBrief
     comment: Optional[str] = None

@@ -21,6 +21,8 @@ export const AuthContext = createContext<AuthContextType>({
   requireAuth: () => {},
 });
 
+const GUEST_SESSION_STORAGE_KEY = "ripple_guest_session";
+
 export function useAuth() {
   return useContext(AuthContext);
 }
@@ -32,6 +34,20 @@ export function setToken(token: string) {
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
   return localStorage.getItem("ripple_token");
+}
+
+export function getGuestSessionKey(): string | null {
+  if (typeof window === "undefined") return null;
+
+  const existing = localStorage.getItem(GUEST_SESSION_STORAGE_KEY);
+  if (existing) return existing;
+
+  const generated =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID().replace(/-/g, "")
+      : `${Date.now()}${Math.random().toString(16).slice(2)}`;
+  localStorage.setItem(GUEST_SESSION_STORAGE_KEY, generated);
+  return generated;
 }
 
 export function removeToken() {

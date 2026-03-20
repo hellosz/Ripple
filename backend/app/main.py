@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.database import check_db_connection, init_db
-from app.api import auth, users, skills, interactions, sse, admin
+from app.api import admin, auth, interactions, ripples, skills, sse, users
 
 
 @asynccontextmanager
@@ -39,6 +39,7 @@ app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(skills.router)
 app.include_router(interactions.router)
+app.include_router(ripples.router)
 app.include_router(sse.router)
 app.include_router(admin.router)
 
