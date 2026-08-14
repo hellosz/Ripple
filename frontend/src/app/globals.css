@@ -9,6 +9,18 @@
   --surface-hover: rgba(255, 255, 255, 0.07);
   --border: rgba(255, 255, 255, 0.08);
   --border-hover: rgba(255, 255, 255, 0.14);
+
+  /* 语义文本层级 */
+  --text-primary: #e8e4f0;
+  --text-secondary: rgba(255, 255, 255, 0.72);
+  --text-muted: rgba(255, 255, 255, 0.55);
+
+  /* 表面与边框 */
+  --surface-elevated: rgba(255, 255, 255, 0.06);
+  --border-strong: rgba(255, 255, 255, 0.14);
+
+  /* 卡片阴影 */
+  --shadow-card: 0 8px 30px rgba(0, 0, 0, 0.35);
 }
 
 body {
@@ -168,7 +180,6 @@ html {
 
 /* Header aurora wave */
 .header-aurora {
-  position: relative;
   overflow: hidden;
   background: linear-gradient(135deg, #0f0b2e 0%, #1a1145 40%, #150d30 100%);
 }

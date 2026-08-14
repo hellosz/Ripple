@@ -11,10 +11,10 @@ export default function HomePage() {
   return (
     <div>
       {/* Hero — title + search zone */}
-      <div className="text-center pt-16 pb-10 md:pt-24 md:pb-14">
+      <div className="text-center pt-10 pb-8 md:pt-14 md:pb-10">
         <h1 className="text-4xl md:text-6xl font-bold tracking-tight text-white">
           One Drop, Endless{" "}
-          <span className="text-white/30">Ripples.</span>
+          <span className="text-ripple-400">Ripples.</span>
         </h1>
         <RippleQuote />
 

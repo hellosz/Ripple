@@ -17,7 +17,8 @@ dependencies = [
     "pydantic[email]>=2.10.4",
     "pydantic-settings>=2.7.1",
     "aiofiles>=24.1.0",
-    "gitpython>=3.1.44",
+    "boto3>=1.35.0",
+    "redis>=5.0.0",
     "pyyaml>=6.0.2",
     "markdown-it-py>=3.0.0",
     "openai>=1.59.7",
@@ -32,3 +33,7 @@ dev = [
     "pytest-asyncio>=0.24.0",
     "httpx>=0.28.1",
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

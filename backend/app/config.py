@@ -17,9 +17,16 @@ class Settings(BaseSettings):
     ADMIN_EMAIL: str = "admin@patpat.com"
     ADMIN_PASSWORD: str = "admin123456"
 
-    # Git
+    # Git (legacy, being phased out)
     SKILLS_REPO_PATH: str = ""
     GIT_REMOTE_URL: str = ""
+
+    # MinIO (S3-compatible object storage)
+    MINIO_ENDPOINT: str = "localhost:9000"
+    MINIO_ACCESS_KEY: str = "ripple"
+    MINIO_SECRET_KEY: str = "ripple123456"
+    MINIO_BUCKET: str = "ripple-skill-packages"
+    MINIO_SECURE: bool = False
 
     # LLM
     LLM_PROVIDER: str = "openai"
@@ -39,6 +46,12 @@ class Settings(BaseSettings):
     # App
     APP_NAME: str = "Ripple"
     APP_ENV: str = "development"
+    APP_BASE_URL: str = "http://localhost:8000"
+    FRONTEND_URL: str = "http://localhost:3000"
+    CLI_VERSION: str = "0.3.0"
+
+    # Redis
+    REDIS_URL: str = "redis://localhost:6379/0"
 
     @property
     def cors_origins_list(self) -> List[str]:

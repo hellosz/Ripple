@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI
@@ -15,7 +16,18 @@ async def lifespan(app: FastAPI):
         await init_db()
     else:
         await check_db_connection()
+
+    # Start SSE Redis subscriber (cross-instance push)
+    from app.services.notification_service import start_sse_subscriber
+    sse_task = asyncio.create_task(start_sse_subscriber())
+
     yield
+
+    sse_task.cancel()
+    try:
+        await sse_task
+    except asyncio.CancelledError:
+        pass
     # Shutdown
 
 
@@ -53,3 +65,8 @@ if _static_dir.is_dir():
 @app.get("/api/health")
 async def health():
     return {"status": "ok", "app": settings.APP_NAME}
+
+
+@app.get("/api/cli/version")
+async def cli_version():
+    return {"version": settings.CLI_VERSION}

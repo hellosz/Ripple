@@ -1,12 +1,11 @@
 {
-  "name": "@anthropic-ai/ripple-cli",
-  "version": "0.1.0",
-  "description": "CLI for installing AI skills from the Ripple platform",
+  "name": "@ripple/cli",
+  "version": "0.2.0",
+  "description": "Ripple CLI - manage AI skills across Claude Code, Codex and other agents",
+  "type": "module",
   "bin": {
     "ripple": "./bin/ripple.mjs"
   },
-  "type": "module",
-  "packageManager": "pnpm@10.6.5",
   "engines": {
     "node": ">=18.0.0"
   },
@@ -18,11 +17,5 @@
   "scripts": {
     "pack": "pnpm pack"
   },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/anthropic-ai/ripple",
-    "directory": "cli"
-  },
-  "keywords": ["ai", "skills", "agent", "ripple", "cli"],
   "license": "MIT"
 }

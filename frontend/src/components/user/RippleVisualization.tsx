@@ -36,7 +36,7 @@ export function RippleVisualization({ ripple }: RippleVisualizationProps) {
           const x = Math.cos(angle) * radius + 128;
           const y = Math.sin(angle) * radius + 128;
           const avatarSize = 24 + Math.random() * 16;
-          const isViewed = push.status === "viewed";
+          const isViewed = push.status === "consumed";
 
           return (
             <div
@@ -57,7 +57,7 @@ export function RippleVisualization({ ripple }: RippleVisualizationProps) {
 
       <div className="flex justify-center gap-4 mt-4 text-xs text-gray-500">
         <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-gray-400" /> Viewed
+          <span className="w-2 h-2 rounded-full bg-gray-400" /> Consumed
         </span>
         <span className="flex items-center gap-1">
           <span className="w-2 h-2 rounded-full bg-gray-300 opacity-40" /> Pending

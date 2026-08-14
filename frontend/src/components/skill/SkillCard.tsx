@@ -60,14 +60,14 @@ export function SkillCard({ skill, index }: SkillCardProps) {
   return (
     <>
       <div
-        className="group rounded-2xl border border-white/[0.06] bg-white/[0.02] overflow-hidden transition-all hover:border-white/[0.12] hover:bg-white/[0.04] card-fade-in"
+        className="group rounded-2xl border border-white/[0.12] bg-white/[0.03] overflow-hidden transition-all hover:border-white/[0.2] hover:bg-white/[0.06] shadow-[0_8px_30px_rgba(0,0,0,0.35)] card-fade-in"
         style={{ animationDelay: `${index * 60}ms` }}
       >
         {/* Top bar: category badge + action buttons */}
         <div className="flex items-center justify-between px-5 pt-4 pb-2">
           {/* Category badge */}
           {categoryLabel ? (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/[0.05] text-[11px] text-white/40">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/[0.05] text-[11px] text-white/70">
               {categoryLabel}
             </span>
           ) : (
@@ -78,26 +78,26 @@ export function SkillCard({ skill, index }: SkillCardProps) {
           <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
             <button
               onClick={() => setShowPreview(true)}
-              className="p-1.5 rounded-lg text-white/25 hover:text-ripple-400 hover:bg-white/[0.06] transition-colors"
+              className="p-1.5 rounded-lg text-white/60 hover:text-ripple-400 hover:bg-white/[0.06] transition-colors"
               title="Preview"
             >
               <Eye size={14} />
             </button>
             <button
-              className="p-1.5 rounded-lg text-white/25 hover:text-pink-400 hover:bg-white/[0.06] transition-colors"
+              className="p-1.5 rounded-lg text-white/60 hover:text-pink-400 hover:bg-white/[0.06] transition-colors"
               title="Favorite"
             >
               <Heart size={14} />
             </button>
             <button
               onClick={handleCopy}
-              className="p-1.5 rounded-lg text-white/25 hover:text-green-400 hover:bg-white/[0.06] transition-colors"
+              className="p-1.5 rounded-lg text-white/60 hover:text-green-400 hover:bg-white/[0.06] transition-colors"
               title="Copy install command"
             >
               <Copy size={14} />
             </button>
             <button
-              className="p-1.5 rounded-lg text-white/25 hover:text-blue-400 hover:bg-white/[0.06] transition-colors"
+              className="p-1.5 rounded-lg text-white/60 hover:text-blue-400 hover:bg-white/[0.06] transition-colors"
               title="Install"
             >
               <Download size={14} />
@@ -118,7 +118,7 @@ export function SkillCard({ skill, index }: SkillCardProps) {
             {skill.display_name || skill.name}
           </h3>
           {skill.description && (
-            <p className="mt-1.5 text-[13px] text-white/35 line-clamp-2 leading-relaxed">
+            <p className="mt-1.5 text-[13px] text-white/60 line-clamp-2 leading-relaxed">
               {skill.description}
             </p>
           )}
@@ -136,17 +136,17 @@ export function SkillCard({ skill, index }: SkillCardProps) {
             {skill.recommendation ? (
               <div className="min-w-0 flex-1">
                 <div className="relative bg-white/[0.04] rounded-lg rounded-tl-sm px-3 py-2">
-                  <p className="text-[12px] text-white/30 line-clamp-2 leading-relaxed italic">
+                  <p className="text-[12px] text-white/60 line-clamp-2 leading-relaxed italic">
                     &ldquo;{skill.recommendation}&rdquo;
                   </p>
                 </div>
-                <span className="text-[11px] text-white/20 mt-1 inline-block">
+                <span className="text-[11px] text-white/60 mt-1 inline-block">
                   {authorName}
                 </span>
               </div>
             ) : (
               <div className="min-w-0 flex-1 flex items-center h-6">
-                <span className="text-[12px] text-white/25">
+                <span className="text-[12px] text-white/60">
                   {authorName}
                 </span>
               </div>

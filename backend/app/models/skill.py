@@ -27,6 +27,11 @@ class SkillStatusEnum(str, enum.Enum):
     disabled = "disabled"
 
 
+class PublishChannelEnum(str, enum.Enum):
+    production = "production"  # 正式：所有用户可见
+    gray = "gray"  # 灰度：仅管理员可见
+
+
 class Skill(Base):
     __tablename__ = "skills"
 
@@ -47,6 +52,7 @@ class Skill(Base):
     package_checksum: Mapped[str | None] = mapped_column(String(64))
     git_path: Mapped[str | None] = mapped_column(String(500))
     status: Mapped[SkillStatusEnum] = mapped_column(Enum(SkillStatusEnum), default=SkillStatusEnum.active)
+    publish_channel: Mapped[PublishChannelEnum] = mapped_column(Enum(PublishChannelEnum), default=PublishChannelEnum.production)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

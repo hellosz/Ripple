@@ -1,13 +1,14 @@
 import os
+import asyncio
 import tempfile
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query, status
-from fastapi.responses import FileResponse
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db
 from app.schemas.skill import SkillListResponse, SkillDetail, FileTreeNode, FileContent, SkillUploadResponse
-from app.middleware.auth import get_current_user, get_optional_user
+from app.middleware.auth import get_current_user, get_optional_user, get_admin_user
 from app.models.user import User
 from app.models.skill import Skill, SkillStatusEnum
 from app.models.comment import SkillComment
@@ -19,9 +20,12 @@ from app.services.skill_service import (
     upload_skill,
     get_skill_stats,
     get_current_version_record,
-    resolve_package_storage_path,
+    resolve_package_bytes,
+    get_skill_file_tree,
+    get_skill_file_content as get_skill_file_record,
+    get_skill_files,
+    build_skill_files_zip_bytes,
 )
-from app.services.git_service import get_file_tree, get_file_content, create_skill_zip
 
 router = APIRouter(prefix="/api/skills", tags=["skills"])
 
@@ -42,6 +46,7 @@ async def get_skills(
     db: AsyncSession = Depends(get_db),
 ):
     tag_list = tags.split(",") if tags else None
+    is_admin = user is not None and user.role.value == "admin"
     items, total = await list_skills(
         db=db,
         user_id=user.id if user else None,
@@ -53,6 +58,7 @@ async def get_skills(
         sort_by=sort_by,
         page=page,
         page_size=page_size,
+        include_gray=is_admin,
     )
     return {"items": items, "total": total, "page": page, "page_size": page_size}
 
@@ -63,7 +69,10 @@ async def get_skill(
     user: Optional[User] = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db),
 ):
-    detail = await get_skill_detail(slug, db, user.id if user else None)
+    detail = await get_skill_detail(
+        slug, db, user.id if user else None,
+        include_gray=user is not None and user.role.value == "admin",
+    )
     if not detail:
         raise HTTPException(status_code=404, detail="Skill not found")
     return detail
@@ -76,11 +85,13 @@ async def get_skill_files(
 ):
     result = await db.execute(select(Skill).where(Skill.name == slug))
     skill = result.scalar_one_or_none()
-    if not skill or not skill.category:
+    if not skill:
         raise HTTPException(status_code=404, detail="Skill not found")
 
-    tree = get_file_tree(skill.category, skill.name)
-    return tree
+    version_record = await get_current_version_record(skill, db)
+    if not version_record:
+        return []
+    return await get_skill_file_tree(skill.id, version_record.version, db)
 
 
 @router.get("/{slug}/files/{file_path:path}")
@@ -91,10 +102,14 @@ async def get_skill_file_content(
 ):
     result = await db.execute(select(Skill).where(Skill.name == slug))
     skill = result.scalar_one_or_none()
-    if not skill or not skill.category:
+    if not skill:
         raise HTTPException(status_code=404, detail="Skill not found")
 
-    content = get_file_content(skill.category, skill.name, file_path)
+    version_record = await get_current_version_record(skill, db)
+    if not version_record:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    content = await get_skill_file_record(skill.id, version_record.version, file_path, db)
     if not content:
         raise HTTPException(status_code=404, detail="File not found")
     return content
@@ -130,55 +145,56 @@ async def get_skill_versions(
 @router.get("/{slug}/download")
 async def download_skill(
     slug: str,
-    user: User = Depends(get_current_user),
+    user: Optional[User] = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(Skill).where(Skill.name == slug))
     skill = result.scalar_one_or_none()
-    if not skill or not skill.category:
+    if not skill:
         raise HTTPException(status_code=404, detail="Skill not found")
 
-    # Record download
-    from app.models.interaction import UserSkillDownload
-    existing = await db.execute(
-        select(UserSkillDownload).where(
-            UserSkillDownload.user_id == user.id,
-            UserSkillDownload.skill_id == skill.id,
+    # Record download (authenticated users only)
+    if user:
+        from app.models.interaction import UserSkillDownload
+        existing = await db.execute(
+            select(UserSkillDownload).where(
+                UserSkillDownload.user_id == user.id,
+                UserSkillDownload.skill_id == skill.id,
+            )
         )
-    )
-    dl = existing.scalar_one_or_none()
-    if dl:
-        dl.version = skill.version
-    else:
-        dl = UserSkillDownload(user_id=user.id, skill_id=skill.id, version=skill.version)
-        db.add(dl)
-    await db.flush()
+        dl = existing.scalar_one_or_none()
+        if dl:
+            dl.version = skill.version
+        else:
+            dl = UserSkillDownload(user_id=user.id, skill_id=skill.id, version=skill.version)
+            db.add(dl)
+        await db.flush()
 
     version_record = await get_current_version_record(skill, db)
-    stored_package_path = resolve_package_storage_path(
+    package_key = (
         version_record.package_storage_path
         if version_record and version_record.package_storage_path
         else skill.package_storage_path
     )
-    if stored_package_path is not None:
-        return FileResponse(
-            str(stored_package_path),
-            media_type="application/zip",
-            filename=(
-                version_record.package_file_name
-                if version_record and version_record.package_file_name
-                else f"{skill.name}-v{skill.version}.zip"
-            ),
-        )
+    file_name = (
+        version_record.package_file_name
+        if version_record and version_record.package_file_name
+        else skill.package_file_name
+    ) or f"{skill.name}-v{skill.version}.zip"
 
-    zip_path = create_skill_zip(skill.category, skill.name)
-    if not zip_path:
+    # Prefer the uploaded package object, then fall back to stored files
+    package_bytes = await asyncio.to_thread(resolve_package_bytes, package_key)
+    if package_bytes is None and version_record:
+        records = await get_skill_files(db, skill.id, version_record.version)
+        package_bytes = build_skill_files_zip_bytes(skill.name, records)
+
+    if package_bytes is None:
         raise HTTPException(status_code=500, detail="Failed to create download package")
 
-    return FileResponse(
-        zip_path,
+    return Response(
+        content=package_bytes,
         media_type="application/zip",
-        filename=f"{skill.name}-v{skill.version}.zip",
+        headers={"Content-Disposition": f'attachment; filename="{file_name}"'},
     )
 
 
@@ -189,7 +205,8 @@ async def create_skill(
     recommendation: str = Form(...),
     origin_type: str = Form(...),
     tags: Optional[str] = Form(None),
-    user: User = Depends(get_current_user),
+    publish_channel: str = Form("production"),
+    user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
     if not file.filename or not file.filename.endswith(".zip"):
@@ -213,6 +230,7 @@ async def create_skill(
             category=category.strip(),
             tags=tag_list,
             db=db,
+            publish_channel=publish_channel,
         )
 
         if error:
@@ -231,7 +249,8 @@ async def update_skill(
     recommendation: str = Form(...),
     origin_type: str = Form(...),
     tags: Optional[str] = Form(None),
-    user: User = Depends(get_current_user),
+    publish_channel: str = Form("production"),
+    user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
     # Verify ownership
@@ -262,6 +281,7 @@ async def update_skill(
             category=category.strip(),
             tags=tag_list,
             db=db,
+            publish_channel=publish_channel,
         )
 
         if error:

@@ -1,21 +1,21 @@
 import os
+import io
+import zipfile
+import asyncio
 import tempfile
 import shutil
 import hashlib
-from pathlib import Path
 from uuid import UUID
 from typing import Optional, List, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, or_
-from app.models.skill import Skill, SkillVersion, SkillStatusEnum, RatingEnum, OriginTypeEnum
+from sqlalchemy import select, func, or_, delete
+from app.models.skill import Skill, SkillVersion, SkillStatusEnum, RatingEnum, OriginTypeEnum, PublishChannelEnum
 from app.models.interaction import UserSkillLike, UserSkillDownload, UserSkillCopy
 from app.models.ripple import Ripple, RipplePush
-from app.services.git_service import (
-    copy_skill_to_repo,
-    git_commit_skill,
-    get_file_content as git_get_file_content,
-)
+from app.models.skill_file import SkillFile
+from app.config import settings
 from app.services.rating_service import rate_skill
+from app.services.storage_service import build_object_key, put_package, get_package
 from app.utils.validators import (
     validate_skill_zip,
     extract_zip_to_dir,
@@ -23,11 +23,124 @@ from app.utils.validators import (
     get_skill_content_without_frontmatter,
 )
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
+BINARY_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".ico", ".svg", ".woff", ".woff2", ".ttf", ".eot", ".zip", ".pdf", ".bin", ".exe", ".dll", ".so", ".dylib"}
+LANG_MAP = {
+    ".py": "python", ".js": "javascript", ".ts": "typescript", ".tsx": "tsx",
+    ".yaml": "yaml", ".yml": "yaml", ".json": "json", ".md": "markdown",
+    ".sh": "bash", ".bash": "bash", ".css": "css", ".html": "html",
+    ".sql": "sql", ".toml": "toml", ".xml": "xml", ".go": "go",
+    ".rs": "rust", ".java": "java", ".rb": "ruby",
+}
 
 
 def build_install_command(skill_name: str, category: Optional[str] = None) -> str:
-    return f"npx skills add https://github.com/org/ripple --skill {skill_name}"
+    return f"npx @ripple/cli install {skill_name}"
+
+
+def iter_text_files(skill_root: str):
+    """Yield file records for UTF-8 text files under skill_root, skipping binaries."""
+    for current_root, dirs, files in os.walk(skill_root):
+        dirs[:] = [d for d in dirs if not d.startswith(".")]
+        for file_name in sorted(files):
+            if file_name.startswith("."):
+                continue
+            full_path = os.path.join(current_root, file_name)
+            rel_path = os.path.relpath(full_path, skill_root).replace(os.sep, "/")
+            ext = os.path.splitext(file_name)[1].lower()
+            if ext in BINARY_EXTS:
+                continue
+            try:
+                with open(full_path, "r", encoding="utf-8") as fh:
+                    content = fh.read()
+            except (UnicodeDecodeError, OSError):
+                continue
+            encoded = content.encode("utf-8")
+            yield {
+                "path": rel_path,
+                "content": content,
+                "language": LANG_MAP.get(ext),
+                "size": len(encoded),
+                "sha256": hashlib.sha256(encoded).hexdigest(),
+            }
+
+
+def build_file_tree_from_paths(file_records: list) -> list:
+    """Rebuild a nested directory tree from flat skill_files paths."""
+    tree: dict = {}
+    for record in file_records:
+        parts = record.path.split("/")
+        node = tree
+        for part in parts[:-1]:
+            node = node.setdefault(part, {})
+        node[parts[-1]] = record.size or 0
+
+    def convert(node: dict, prefix: str) -> list:
+        entries = []
+        for name in sorted(node.keys()):
+            value = node[name]
+            full = f"{prefix}/{name}" if prefix else name
+            if isinstance(value, dict):
+                entries.append({
+                    "name": name,
+                    "path": full,
+                    "type": "directory",
+                    "children": convert(value, full),
+                })
+            else:
+                entries.append({
+                    "name": name,
+                    "path": full,
+                    "type": "file",
+                    "size": value,
+                })
+        return entries
+
+    return convert(tree, "")
+
+
+async def get_skill_files(db: AsyncSession, skill_id: UUID, version: str) -> list[SkillFile]:
+    result = await db.execute(
+        select(SkillFile)
+        .where(SkillFile.skill_id == skill_id, SkillFile.version == version)
+        .order_by(SkillFile.path)
+    )
+    return list(result.scalars().all())
+
+
+async def get_skill_file_tree(skill_id: UUID, version: str, db: AsyncSession) -> list:
+    records = await get_skill_files(db, skill_id, version)
+    return build_file_tree_from_paths(records)
+
+
+async def get_skill_file_content(skill_id: UUID, version: str, path: str, db: AsyncSession) -> Optional[dict]:
+    result = await db.execute(
+        select(SkillFile).where(
+            SkillFile.skill_id == skill_id,
+            SkillFile.version == version,
+            SkillFile.path == path,
+        )
+    )
+    record = result.scalar_one_or_none()
+    if not record:
+        return None
+    return {
+        "path": record.path,
+        "name": os.path.basename(record.path),
+        "content": record.content,
+        "language": record.language,
+        "is_binary": False,
+    }
+
+
+def build_skill_files_zip_bytes(skill_name: str, records: list[SkillFile]) -> Optional[bytes]:
+    """Build a ZIP in memory from skill_files records."""
+    if not records:
+        return None
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for record in records:
+            zf.writestr(f"{skill_name}/{record.path}", record.content)
+    return buffer.getvalue()
 
 
 def compute_ripple_availability(
@@ -55,29 +168,21 @@ def normalize_tags(*tag_sets: Optional[List[str]]) -> List[str]:
 
 
 def store_uploaded_skill_package(zip_path: str, skill_name: str, version: str) -> tuple[str, str, str]:
+    """Write the uploaded package to object storage and return its lineage."""
     with open(zip_path, "rb") as source_file:
         package_bytes = source_file.read()
 
     checksum = hashlib.sha256(package_bytes).hexdigest()
-    relative_path = os.path.join(
-        "backend",
-        "storage",
-        "skill_packages",
-        skill_name,
-        version,
-        f"{checksum}.zip",
-    )
-    full_path = PROJECT_ROOT / relative_path
-    full_path.parent.mkdir(parents=True, exist_ok=True)
-    full_path.write_bytes(package_bytes)
-    return relative_path, f"{skill_name}-{version}.zip", checksum
+    object_key = build_object_key(skill_name, version, checksum)
+    put_package(object_key, package_bytes)
+    return object_key, f"{skill_name}-{version}.zip", checksum
 
 
-def resolve_package_storage_path(package_storage_path: Optional[str]) -> Optional[Path]:
+def resolve_package_bytes(package_storage_path: Optional[str]) -> Optional[bytes]:
+    """Download the stored package object, returning None when missing."""
     if not package_storage_path:
         return None
-    resolved = PROJECT_ROOT / package_storage_path
-    return resolved if resolved.is_file() else None
+    return get_package(package_storage_path)
 
 
 def build_upload_metadata(skill: Skill, version: Optional[SkillVersion]) -> dict:
@@ -100,7 +205,7 @@ def build_upload_metadata(skill: Skill, version: Optional[SkillVersion]) -> dict
     package_storage_path = (
         version.package_storage_path if version and version.package_storage_path else skill.package_storage_path
     )
-    package_ready = resolve_package_storage_path(package_storage_path) is not None
+    package_ready = bool(package_storage_path and package_checksum)
     return {
         "category": category,
         "recommendation": recommendation,
@@ -261,15 +366,20 @@ async def list_skills(
     sort_by: str = "updated_at",
     page: int = 1,
     page_size: int = 20,
+    include_gray: bool = False,
 ) -> Tuple[List[dict], int]:
     query = select(Skill).where(Skill.status == SkillStatusEnum.active)
+    if not include_gray:
+        query = query.where(Skill.publish_channel == PublishChannelEnum.production)
 
     if search:
+        body_match = select(SkillFile.skill_id).where(SkillFile.content.ilike(f"%{search}%"))
         query = query.where(
             or_(
                 Skill.name.ilike(f"%{search}%"),
                 Skill.display_name.ilike(f"%{search}%"),
                 Skill.description.ilike(f"%{search}%"),
+                Skill.id.in_(body_match),
             )
         )
 
@@ -341,10 +451,11 @@ async def list_skills(
     return items, total
 
 
-async def get_skill_detail(slug: str, db: AsyncSession, user_id: Optional[UUID] = None) -> Optional[dict]:
-    result = await db.execute(
-        select(Skill).where(Skill.name == slug, Skill.status != SkillStatusEnum.offline)
-    )
+async def get_skill_detail(slug: str, db: AsyncSession, user_id: Optional[UUID] = None, include_gray: bool = False) -> Optional[dict]:
+    query = select(Skill).where(Skill.name == slug, Skill.status != SkillStatusEnum.offline)
+    if not include_gray:
+        query = query.where(Skill.publish_channel == PublishChannelEnum.production)
+    result = await db.execute(query)
     skill = result.scalar_one_or_none()
     if not skill:
         return None
@@ -358,10 +469,10 @@ async def get_skill_detail(slug: str, db: AsyncSession, user_id: Optional[UUID] 
     stats = await get_skill_stats(skill.id, db)
     interactions = await get_user_interactions(skill.id, user_id, db)
 
-    # Read SKILL.md content
+    # Read SKILL.md content from stored files
     content = None
-    if skill.category and skill.name:
-        file_data = git_get_file_content(skill.category, skill.name, "SKILL.md")
+    if version_record:
+        file_data = await get_skill_file_content(skill.id, version_record.version, "SKILL.md", db)
         if file_data:
             content = get_skill_content_without_frontmatter(file_data["content"])
 
@@ -417,6 +528,7 @@ async def upload_skill(
     category: str,
     tags: Optional[List[str]],
     db: AsyncSession,
+    publish_channel: str = "production",
 ) -> Tuple[Optional[dict], Optional[str]]:
     """Process skill upload. Returns (result, error)."""
     is_valid, error, frontmatter = validate_skill_zip(zip_path)
@@ -438,8 +550,14 @@ async def upload_skill(
     except ValueError:
         return None, "Invalid origin type"
 
+    try:
+        normalized_channel = PublishChannelEnum(publish_channel)
+    except ValueError:
+        return None, "Invalid publish channel (production|gray)"
+
     install_command = build_install_command(name, effective_category)
-    package_storage_path, package_file_name, package_checksum = store_uploaded_skill_package(
+    package_storage_path, package_file_name, package_checksum = await asyncio.to_thread(
+        store_uploaded_skill_package,
         zip_path,
         name,
         version,
@@ -472,14 +590,8 @@ async def upload_skill(
         # Rate
         skill_rating, suggestions = rate_skill(content_body, frontmatter, has_agents)
 
-        # Copy to repo
-        copy_skill_to_repo(skill_root, effective_category, name)
-
-        # Git commit
-        commit_sha = git_commit_skill(
-            effective_category, name, version,
-            f"{'Update' if existing_skill else 'Add'} skill"
-        )
+        # Extract text files for structured storage
+        file_records = list(iter_text_files(skill_root))
 
         if existing_skill:
             # Update existing
@@ -495,7 +607,7 @@ async def upload_skill(
             existing_skill.package_storage_path = package_storage_path
             existing_skill.package_checksum = package_checksum
             existing_skill.display_name = frontmatter.get("display_name", name)
-            existing_skill.git_path = f"skills/{effective_category}/{name}"
+            existing_skill.publish_channel = normalized_channel
             await db.flush()
             skill = existing_skill
         else:
@@ -515,7 +627,7 @@ async def upload_skill(
                 package_file_name=package_file_name,
                 package_storage_path=package_storage_path,
                 package_checksum=package_checksum,
-                git_path=f"skills/{effective_category}/{name}",
+                publish_channel=normalized_channel,
             )
             db.add(skill)
             await db.flush()
@@ -534,10 +646,29 @@ async def upload_skill(
             package_file_name=package_file_name,
             package_storage_path=package_storage_path,
             package_checksum=package_checksum,
-            git_commit_sha=commit_sha,
+            git_commit_sha=None,
             author_id=author_id,
         )
         db.add(sv)
+        await db.flush()
+
+        # Replace stored text files for this version
+        await db.execute(
+            delete(SkillFile).where(
+                SkillFile.skill_id == skill.id,
+                SkillFile.version == version,
+            )
+        )
+        for record in file_records:
+            db.add(SkillFile(
+                skill_id=skill.id,
+                version=version,
+                path=record["path"],
+                content=record["content"],
+                language=record["language"],
+                size=record["size"],
+                sha256=record["sha256"],
+            ))
         await db.flush()
 
         return {

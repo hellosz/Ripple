@@ -13,8 +13,8 @@ export function Header() {
 
   return (
     <>
-      <header className="header-aurora sticky top-0 z-40 border-b border-white/[0.06] shadow-[0_6px_24px_rgba(8,5,18,0.18)]">
-        <div className="relative z-10 mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
+      <header className="header-aurora sticky top-0 z-40 border-b border-white/10 shadow-[0_6px_24px_rgba(8,5,18,0.25)]">
+        <div className="relative z-10 mx-auto flex h-16 max-w-6xl items-center justify-between px-6 md:px-8">
           <Link href="/" className="flex items-center self-stretch">
             <RippleLogo height={28} />
           </Link>
@@ -22,8 +22,9 @@ export function Header() {
           <nav className="flex h-full items-center gap-2">
             <button
               onClick={() => requireAuth(() => setShowUpload(true))}
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-white/40 transition-colors hover:bg-white/[0.06] hover:text-white/70"
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/15 text-white/70 transition-colors hover:bg-white/[0.1] hover:text-white"
               title="Upload Skill"
+              aria-label="Upload Skill"
             >
               <Plus size={18} />
             </button>
@@ -61,7 +62,7 @@ export function Header() {
             ) : (
               <button
                 onClick={() => requireAuth(() => {})}
-                className="rounded-md px-2 py-1.5 text-sm text-white/50 transition-colors hover:bg-white/[0.04] hover:text-white/80"
+                className="rounded-lg border border-white/15 bg-white/[0.06] px-3 py-1.5 text-sm font-medium text-white/90 transition-colors hover:bg-white/[0.12] hover:text-white"
               >
                 Login
               </button>

@@ -68,7 +68,7 @@ export function SkillCardGrid({ search = "" }: SkillCardGridProps) {
     `px-3 py-1.5 text-xs rounded-full border transition-all ${
       active
         ? "border-ripple-500/50 bg-ripple-500/10 text-ripple-300"
-        : "border-white/[0.06] text-white/30 hover:border-white/[0.12] hover:text-white/50"
+        : "border-white/[0.12] text-white/60 hover:border-white/[0.2] hover:text-white/80"
     }`;
 
   return (
@@ -78,7 +78,7 @@ export function SkillCardGrid({ search = "" }: SkillCardGridProps) {
         {/* Category tabs + more button */}
         <div className="flex items-center justify-between gap-3">
           {/* Category tabs */}
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
             <button
               onClick={() => { setCategory(""); setPage(1); }}
               className={pillClass(!category)}
@@ -98,15 +98,16 @@ export function SkillCardGrid({ search = "" }: SkillCardGridProps) {
 
           {/* Right side: count + more toggle */}
           <div className="flex items-center gap-2 flex-shrink-0">
-            <span className="text-[11px] text-white/15 tabular-nums">
+            <span className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2.5 py-1 text-[11px] text-white/70 tabular-nums">
               {total}
+              <span className="text-white/50">skills</span>
             </span>
             <button
               onClick={() => setShowMore(!showMore)}
-              className={`p-1.5 rounded-lg transition-colors ${
+              className={`rounded-lg border p-1.5 transition-colors ${
                 showMore || hasMoreFilters
-                  ? "text-ripple-400 bg-ripple-500/10"
-                  : "text-white/25 hover:text-white/50 hover:bg-white/[0.06]"
+                  ? "border-ripple-500/40 text-ripple-400 bg-ripple-500/10"
+                  : "border-white/[0.12] text-white/60 hover:text-white/80 hover:bg-white/[0.08]"
               }`}
               title="More filters"
             >
@@ -128,7 +129,7 @@ export function SkillCardGrid({ search = "" }: SkillCardGridProps) {
               <div className="pt-4 pb-1 space-y-2.5">
                 {/* Rating */}
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[11px] text-white/20 w-12">Rating</span>
+                  <span className="text-[11px] text-white/55 w-12">Rating</span>
                   <button
                     onClick={() => { setRating(""); setPage(1); }}
                     className={pillClass(!rating)}
@@ -148,7 +149,7 @@ export function SkillCardGrid({ search = "" }: SkillCardGridProps) {
 
                 {/* Origin */}
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[11px] text-white/20 w-12">Origin</span>
+                  <span className="text-[11px] text-white/55 w-12">Origin</span>
                   <button
                     onClick={() => { setOriginType(""); setPage(1); }}
                     className={pillClass(!originType)}
@@ -207,9 +208,9 @@ export function SkillCardGrid({ search = "" }: SkillCardGridProps) {
           ))}
         </div>
       ) : items.length === 0 ? (
-        <div className="text-center py-20 text-white/25">
+        <div className="text-center py-20 text-white/60">
           <p className="text-base">No skills found</p>
-          <p className="text-sm mt-1 text-white/15">Try a different search or filter</p>
+          <p className="text-sm mt-1 text-white/50">Try a different search or filter</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -225,17 +226,17 @@ export function SkillCardGrid({ search = "" }: SkillCardGridProps) {
           <button
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={page === 1}
-            className="p-2 rounded-lg text-white/25 hover:text-white/50 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+            className="p-2 rounded-lg text-white/60 hover:text-white/80 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
           >
             <ChevronLeft size={18} />
           </button>
-          <span className="text-sm text-white/25 tabular-nums">
+          <span className="text-sm text-white/60 tabular-nums">
             {page} / {totalPages}
           </span>
           <button
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={page >= totalPages}
-            className="p-2 rounded-lg text-white/25 hover:text-white/50 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+            className="p-2 rounded-lg text-white/60 hover:text-white/80 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
           >
             <ChevronRight size={18} />
           </button>

@@ -88,7 +88,7 @@ export function SearchBar({
       <div className="relative">
         <Search
           size={20}
-          className="absolute left-4 top-1/2 -translate-y-1/2 text-white/25"
+          className="absolute left-4 top-1/2 -translate-y-1/2 text-white/60"
         />
         <input
           ref={inputRef}
@@ -97,7 +97,7 @@ export function SearchBar({
           onChange={(e) => handleChange(e.target.value)}
           onFocus={handleFocus}
           placeholder={placeholder}
-          className="w-full pl-12 pr-10 py-3 rounded-full border border-white/[0.08] bg-white/[0.04] text-white/90 placeholder-white/25 focus:outline-none text-base transition-all cursor-pointer"
+          className="w-full pl-12 pr-10 py-3.5 rounded-full border border-white/[0.2] bg-white/[0.06] text-white/90 placeholder-white/50 focus:outline-none focus:border-ripple-400/70 hover:border-white/[0.28] hover:bg-white/[0.08] text-base transition-all cursor-pointer"
           readOnly={expandable}
         />
         {local && !expandable && (
@@ -123,7 +123,7 @@ export function SearchBar({
             <div className="relative">
               <Search
                 size={20}
-                className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30"
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-white/60"
               />
               <input
                 ref={expandedInputRef}

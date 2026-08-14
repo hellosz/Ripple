@@ -118,7 +118,7 @@ export function SkillDetailComponent({ skill }: SkillDetailComponentProps) {
     CATEGORY_LABELS[localSkill.category || ""] || localSkill.category || "Other";
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_240px]">
+    <div className={`grid gap-6 ${headings.length > 0 ? "xl:grid-cols-[minmax(0,1fr)_240px]" : ""}`}>
       <div className="rounded-[32px] border border-[#d9c9f1] bg-[linear-gradient(180deg,rgba(250,246,255,0.97)_0%,rgba(244,239,251,0.98)_100%)] p-6 text-[#241b38] shadow-[0_28px_100px_rgba(10,6,20,0.28)] md:p-8">
         <div className="space-y-6">
       {/* Header */}
