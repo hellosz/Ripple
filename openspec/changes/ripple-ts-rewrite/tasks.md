@@ -16,21 +16,21 @@
 
 ## 3. 服务端（apps/server）
 
-- [ ] 3.1 Fastify 应用骨架：配置加载（环境变量对齐现有 `.env` 键名）、zod type provider、OpenAPI 文档、CORS、健康检查 `/api/health`
-- [ ] 3.2 Drizzle 接管数据库：`drizzle-kit pull` 生成 baseline（与 Alembic head 等价，schema diff 核对），对既有库 stamp 不执行；新增 `skill_views`/`collections`/`collection_skills`/`user_follows` 迁移；清理 `git_path`/`git_commit_sha` 遗留字段迁移（含 down）
-- [ ] 3.3 认证模块：注册（随机密码邮件下发、ADMIN_EMAIL 自动 admin）、登录 JWT、`/me`、三档鉴权装置（必须/可选/admin）、游客会话认领
-- [ ] 3.4 设备码流程：init/poll/confirm，Redis 状态存储（key 结构与 TTL 对齐现有实现）
-- [ ] 3.5 技能读取：列表（search 含 skill_files 全文、category/tags/rating/origin/author 过滤、热度/时间排序、灰度门控、聚合单查询修复 N+1）、详情、文件树、单文件、版本历史
-- [ ] 3.6 技能写入：multipart 上传（skill-core 校验+评级）、MinIO 内容寻址存包、skill_files 入库、版本记录、他人同名拒绝、更新后 skill_update SSE 通知；ZIP 下载（MinIO 优先、skill_files 回退打包、下载记录）
-- [ ] 3.7 互动模块：copy（幂等）、like/unlike、ripple 前置校验与创建、stats 接口
-- [ ] 3.8 热度体系：heat_raw 聚合查询、周归一化（Redis 缓存基准每小时刷新）、热度榜接口、浏览计数端点（user/guest 按日去重）
-- [ ] 3.9 RP 推送：候选池构建（排除规则+30 分钟活跃游客）、随机 3–7 抽样、投递生命周期（pending/shown/consumed/dismissed）、guest touch/认领转换、consume/dismiss 端点
-- [ ] 3.10 SSE 模块：`/api/sse/notifications` 事件流、30s 心跳、连接补发 pending、Redis pub/sub 跨实例（不可用时本地降级）
-- [ ] 3.11 评论模块：嵌套树读取与发布
-- [ ] 3.12 合辑与关注：合辑 CRUD（admin）与列表/详情、关注/取关、关注信息流
-- [ ] 3.13 个人中心与画像：资料更新、likes/downloads/ripples 列表、LLM 画像生成（OpenAI + 静态模板降级）
-- [ ] 3.14 管理后台接口：用户/技能管理、总览统计、Top10 榜单
-- [ ] 3.15 API 集成测试：对照现有行为的端到端用例（认证、上传下载、互动前置、推送投递、灰度、SSE），覆盖 spec 全部 Scenario
+- [x] 3.1 Fastify 应用骨架：配置加载（环境变量对齐现有 `.env` 键名）、zod type provider、OpenAPI 文档、CORS、健康检查 `/api/health`
+- [x] 3.2 Drizzle 接管数据库：`drizzle-kit pull` 生成 baseline（与 Alembic head 等价，schema diff 核对），对既有库 stamp 不执行；新增 `skill_views`/`collections`/`collection_skills`/`user_follows` 迁移；清理 `git_path`/`git_commit_sha` 遗留字段迁移（含 down）
+- [x] 3.3 认证模块：注册（随机密码邮件下发、ADMIN_EMAIL 自动 admin）、登录 JWT、`/me`、三档鉴权装置（必须/可选/admin）、游客会话认领
+- [x] 3.4 设备码流程：init/poll/confirm，Redis 状态存储（key 结构与 TTL 对齐现有实现）
+- [x] 3.5 技能读取：列表（search 含 skill_files 全文、category/tags/rating/origin/author 过滤、热度/时间排序、灰度门控、聚合单查询修复 N+1）、详情、文件树、单文件、版本历史
+- [x] 3.6 技能写入：multipart 上传（skill-core 校验+评级）、MinIO 内容寻址存包、skill_files 入库、版本记录、他人同名拒绝、更新后 skill_update SSE 通知；ZIP 下载（MinIO 优先、skill_files 回退打包、下载记录）
+- [x] 3.7 互动模块：copy（幂等）、like/unlike、ripple 前置校验与创建、stats 接口
+- [x] 3.8 热度体系：heat_raw 聚合查询、周归一化（Redis 缓存基准每小时刷新）、热度榜接口、浏览计数端点（user/guest 按日去重）
+- [x] 3.9 RP 推送：候选池构建（排除规则+30 分钟活跃游客）、随机 3–7 抽样、投递生命周期（pending/shown/consumed/dismissed）、guest touch/认领转换、consume/dismiss 端点
+- [x] 3.10 SSE 模块：`/api/sse/notifications` 事件流、30s 心跳、连接补发 pending、Redis pub/sub 跨实例（不可用时本地降级）
+- [x] 3.11 评论模块：嵌套树读取与发布
+- [x] 3.12 合辑与关注：合辑 CRUD（admin）与列表/详情、关注/取关、关注信息流
+- [x] 3.13 个人中心与画像：资料更新、likes/downloads/ripples 列表、LLM 画像生成（OpenAI + 静态模板降级）
+- [x] 3.14 管理后台接口：用户/技能管理、总览统计、Top10 榜单
+- [x] 3.15 API 集成测试：对照现有行为的端到端用例（认证、上传下载、互动前置、推送投递、灰度、SSE），覆盖 spec 全部 Scenario
 
 ## 4. 共享 UI 与 Web（apps/web）
 
