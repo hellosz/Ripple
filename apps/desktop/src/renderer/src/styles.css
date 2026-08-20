@@ -1,0 +1,92 @@
+:root {
+  --rp-bg: #faf9f2;
+  --rp-panel: #f1efe4;
+  --rp-ink: #3f4438;
+  --rp-body: #374151;
+  --rp-primary: #6b7f43;
+  --rp-primary-deep: #55663a;
+  --rp-primary-soft: #93a86b;
+  --rp-primary-pale: #b9c69a;
+  --rp-font-sans: 'Noto Sans SC', system-ui, sans-serif;
+  --rp-font-mono: 'Space Grotesk', ui-monospace, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--rp-bg);
+  color: var(--rp-body);
+  font-family: var(--rp-font-sans);
+  overflow: hidden;
+  user-select: none;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(107, 127, 67, 0.25);
+  border-radius: 3px;
+}
+
+@keyframes fade-in {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+@keyframes slide-up {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ---- hover 工具类（内联样式无法表达 :hover，对应原型 style-hover） ---- */
+.rp-hover-row:hover {
+  background: rgba(147, 168, 107, 0.08);
+}
+.rp-hover-primary:hover {
+  color: var(--rp-primary) !important;
+}
+.rp-hover-danger:hover {
+  color: #bd8578 !important;
+}
+.rp-btn-grad:hover {
+  opacity: 0.88;
+}
+.rp-btn-outline:hover {
+  background: rgba(147, 168, 107, 0.08);
+}
+.rp-btn-ghost:hover {
+  border-color: rgba(107, 127, 67, 0.4) !important;
+  color: var(--rp-primary) !important;
+}
+.rp-chip:hover {
+  border-color: rgba(107, 127, 67, 0.5) !important;
+}
+.rp-underline:hover {
+  text-decoration: underline;
+}
+.rp-conn-card:hover {
+  border-color: rgba(250, 249, 242, 0.55) !important;
+}
+.rp-proj-x {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.rp-hover-row:hover .rp-proj-x {
+  opacity: 1;
+}
+input.rp-input::placeholder {
+  color: rgba(75, 80, 64, 0.35);
+}

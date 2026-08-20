@@ -40,7 +40,7 @@ const envSchema = z.object({
   APP_BASE_URL: z.string().default('http://localhost:8000'),
   FRONTEND_URL: z.string().default('http://localhost:3000'),
   CLI_VERSION: z.string().default('1.0.0'),
-  CLI_NPM_PACKAGE: z.string().default('ripple'),
+  CLI_NPM_PACKAGE: z.string().default('@hellosz/ripple'),
   REDIS_URL: z.string().default('redis://localhost:6379/0'),
 });
 

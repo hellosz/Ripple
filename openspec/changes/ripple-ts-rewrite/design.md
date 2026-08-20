@@ -37,7 +37,7 @@ ripple/
 │   ├── server/      # Fastify API 服务
 │   ├── web/         # Next.js Web 社区
 │   ├── desktop/     # Electron 桌面客户端
-│   └── cli/         # ripple CLI（npm: ripple-cli）
+│   └── cli/         # ripple CLI（npm: @hellosz/ripple）
 ├── packages/
 │   ├── contract/    # zod schema + API 类型契约（三端共享）
 │   ├── api-client/  # 基于 contract 的类型安全 HTTP/SSE client（web/desktop/cli 共享）
@@ -86,7 +86,7 @@ ripple/
 
 ### D6 CLI：commander + 分组命令（lark-cli 式规范）
 
-npm 包名 `ripple`，bin `ripple`，Node ≥ 20，tsup 打成单文件。命令面（对齐桌面能力）：
+npm 包名 `@hellosz/ripple`，bin `ripple`，Node ≥ 20，tsup 打成单文件。命令面（对齐桌面能力）：
 
 ```
 ripple login [--remote] / logout / whoami          # 设备码认证
@@ -114,7 +114,7 @@ ripple self-update
 ### D8 GitHub 迁移与分发
 
 - 迁移：GitHub 新建仓库 `Ripple`（保留全部历史：`git push --mirror`），origin 切换；GitLab 远端保留只读过渡期。
-- 版本与发布：changesets 管版本；`v*` tag 触发 GitHub Actions——`release-cli.yml` 构建并 `npm publish`（包名 `ripple`，NPM_TOKEN secret）；`release-desktop.yml` 三平台矩阵 electron-builder 构建（AppImage+deb / dmg / nsis exe）上传 GitHub Release，electron-updater 据此自动更新。
+- 版本与发布：changesets 管版本；`v*` tag 触发 GitHub Actions——`release-cli.yml` 构建并 `npm publish`（包名 `@hellosz/ripple`，NPM_TOKEN secret）；`release-desktop.yml` 三平台矩阵 electron-builder 构建（AppImage+deb / dmg / nsis exe）上传 GitHub Release，electron-updater 据此自动更新。
 - CI：PR 触发 lint + typecheck + vitest + web build + Playwright（关键流程）。
 - 旧 `backend/static/cli/ripple-cli.tgz` 自托管分发废弃，`/api/cli/version` 改为返回 npm dist-tag 信息供 `self-update` 提示。
 
@@ -123,7 +123,7 @@ ripple self-update
 - [行为等价风险：Python→TS 重写遗漏隐式行为（游客认领、RP 随机抽样规则、评级细节）] → 以 `enhance-skill-engagement-and-comments`、`migrate-skill-storage-to-minio` 两个 change 的 spec 为契约基准；评级/校验规则在 `skill-core` 里用现有 Python 测试用例的移植版做表驱动测试。
 - [Windows symlink 权限（非管理员/未开发者模式不可建 symlink）] → 目录用 junction（无需特权），失败自动降级 copy 并在 UI/CLI 明示当前分发方式。
 - [Electron 包体积大、内存高] → 接受（换取 TS 单栈与共享 hub 库）；发布物用 asar + 平台裁剪控制体积。
-- [npm 包名 `ripple` 若在 registry 端发布受阻（占用/相似名拦截）] → 发布前用 `npm view ripple` 验证并尽早占位发布 0.0.x 占位版本。
+- [npm 包名 `@hellosz/ripple` 若在 registry 端发布受阻（占用/相似名拦截）] → 发布前用 `npm view ripple` 验证并尽早占位发布 0.0.x 占位版本。
 - [热度周归一化导致小流量期热度剧烈波动] → 归一化分母取 `max(周最大热度, 下限常数)`，避免除小数放大。
 - [DB 接管：drizzle baseline 与 Alembic 现状偏差] → 上线前用 schema diff 工具核对 information_schema；baseline 迁移在既有库上只 stamp 不执行。
 - [双栈并行期（Python 旧服务 vs TS 新服务）数据写冲突] → 不并行写：按环境整体切换，API 兼容层保证前端/CLI 可指向任一后端过渡。
@@ -142,7 +142,7 @@ ripple self-update
 
 ## Open Questions
 
-- ~~npm 包最终命名~~ 已确认：npm 包名为 `ripple`。
+- ~~npm 包最终命名~~ 已确认：npm 包名为 `@hellosz/ripple`（`ripple`/`ripple-cli` 均已被占用，bin 仍为 `ripple`）。
 - GitHub 仓库归属（个人账号 hellosz vs 组织）与可见性（public/private）需用户确认——分发（npm + GitHub Release + codeload 拉仓库源）默认假设 public。
 - 桌面客户端代码签名（macOS notarization / Windows 签名证书）暂不具备，首发接受未签名安装包（用户需手动允许）。
 - 现有生产数据是否存在需要在切换窗口冻结写入的运营流程，切换时间窗待定。

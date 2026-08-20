@@ -9,7 +9,7 @@
 
 ## 1. 项目概览
 
-**Ripple** — AI Skill 分享平台：发现、预览、下载和传播高质量的 AI Agent 技能包。三端形态：Web 社区、跨平台桌面客户端（Linux/macOS/Windows）、CLI（npm 包名 `ripple`）。
+**Ripple** — AI Skill 分享平台：发现、预览、下载和传播高质量的 AI Agent 技能包。三端形态：Web 社区、跨平台桌面客户端（Linux/macOS/Windows）、CLI（npm 包名 `@hellosz/ripple`）。
 
 | 层 | 技术 |
 |---|---|
@@ -17,7 +17,7 @@
 | 服务端 | Fastify + zod（contract 单一来源）+ Drizzle ORM（PostgreSQL） |
 | Web | Next.js 15 (App Router)、React 19、Tailwind CSS |
 | 桌面 | Electron + electron-vite + React（复用 `packages/ui`），electron-builder / electron-updater |
-| CLI | commander，tsup 单文件产物，npm 包名 `ripple`（bin `ripple`） |
+| CLI | commander，tsup 单文件产物，npm 包名 `@hellosz/ripple`（bin `ripple`） |
 | 数据 | PostgreSQL 16 + Redis 7 + MinIO（S3 兼容，Docker Compose 托管） |
 | 认证 | JWT（HS256）+ OAuth 设备码流程（CLI/桌面） |
 | 测试 | vitest（单元/集成）+ Playwright（Web e2e） |

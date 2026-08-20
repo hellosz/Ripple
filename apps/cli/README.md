@@ -3,7 +3,7 @@
 Ripple CLI — 发现、安装、同步与发布 AI Agent 技能。
 
 ```bash
-npm i -g ripple
+npm i -g @hellosz/ripple
 ripple login
 ripple search git
 ripple install git-archaeologist --agent claude-code

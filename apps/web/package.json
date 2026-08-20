@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "next dev -p 3000",
-    "build": "next build",
+    "build": "next build && node scripts/clean-next-env.mjs",
     "start": "next start -p 3000",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run"
@@ -24,8 +24,14 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.0",
+    "@testing-library/jest-dom": "^6.6.0",
+    "@testing-library/react": "^16.3.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "tailwindcss": "^4.1.0"
+    "@vitejs/plugin-react": "^4.7.0",
+    "jsdom": "^30.0.1",
+    "tailwindcss": "^4.1.0",
+    "vite": "^7.3.6",
+    "vitest": "^3.2.7"
   }
 }

@@ -3,7 +3,7 @@
 ## ADDED Requirements
 
 ### Requirement: 命令结构与规范
-CLI SHALL 以 `ripple` 为命令名（npm 包名 `ripple`，Node ≥ 20，单文件产物），采用「名词 + 动词」分组命令（`ripple agent list`、`ripple source add`、`ripple backup restore`），高频操作保留顶层动词捷径（`login/search/info/install/update/uninstall/publish/list/sync/enable/disable`）。所有命令 MUST 提供 `--help`；未知命令/参数错误 MUST 以退出码 2 结束并提示用法。退出码约定：0 成功、1 业务失败、2 参数错误。
+CLI SHALL 以 `ripple` 为命令名（npm 包名 `@hellosz/ripple`，Node ≥ 20，单文件产物），采用「名词 + 动词」分组命令（`ripple agent list`、`ripple source add`、`ripple backup restore`），高频操作保留顶层动词捷径（`login/search/info/install/update/uninstall/publish/list/sync/enable/disable`）。所有命令 MUST 提供 `--help`；未知命令/参数错误 MUST 以退出码 2 结束并提示用法。退出码约定：0 成功、1 业务失败、2 参数错误。
 
 #### Scenario: 未知参数
 - **WHEN** 执行 `ripple install --no-such-flag`
@@ -70,7 +70,7 @@ CLI 配置 MUST 按优先级合并：命令行参数（`--server/--token` 等）
 - **THEN** 请求发往 B，`ripple config get server` 显示值 B 与来源 env
 
 ### Requirement: 自更新提示
-CLI SHALL 提供 `ripple self-update`：对比 npm registry 上的最新版本（经服务端 `/api/cli/version` 或直接查 registry），提示 `npm i -g ripple@latest` 升级方式；`ripple --version` 输出的版本 MUST 与包版本单一来源一致（构建时注入）。
+CLI SHALL 提供 `ripple self-update`：对比 npm registry 上的最新版本（经服务端 `/api/cli/version` 或直接查 registry），提示 `npm i -g @hellosz/ripple@latest` 升级方式；`ripple --version` 输出的版本 MUST 与包版本单一来源一致（构建时注入）。
 
 #### Scenario: 版本一致性
 - **WHEN** 执行 `ripple --version`

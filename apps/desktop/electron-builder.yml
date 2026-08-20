@@ -1,0 +1,30 @@
+appId: dev.ripple.desktop
+productName: Ripple
+directories:
+  output: release
+files:
+  - out/**
+publish:
+  provider: github
+  owner: hellosz
+  repo: Ripple
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Development
+  maintainer: Ripple <noreply@ripple.dev>
+mac:
+  target:
+    - dmg
+  category: public.app-category.developer-tools
+win:
+  target:
+    - nsis
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+protocols:
+  - name: Ripple Deep Link
+    schemes:
+      - ripple

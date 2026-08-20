@@ -1,0 +1,327 @@
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import type { Collection, SkillListItem } from '@ripple/contract';
+import type { AuthState, HubSnapshot, UpdateEntry } from '../../shared/api.js';
+import { ripple } from './ripple-api.js';
+
+export type ViewKind = 'local' | 'agent' | 'project' | 'market' | 'updates' | 'settings';
+
+export interface View {
+  kind: ViewKind;
+  agentId?: string;
+  projectPath?: string;
+}
+
+export type ScopeFilter = 'all' | 'global' | 'project';
+export type MarketTab = 'browse' | 'rank' | 'collections';
+export type SettingsTab = 'sources' | 'backups';
+export type SyncMode = 'sync' | 'registry';
+
+export interface SyncModalState {
+  skill: string;
+  title: string;
+  mode: SyncMode;
+  /** 目标统一版本（未知时显示"最新版"） */
+  version: string | null;
+  selected: Record<string, boolean>;
+}
+
+/** 同步弹窗勾选项 key：agent + "\n" + (projectDir | "global") */
+export const targetKey = (agent: string, projectDir?: string): string =>
+  `${agent}\n${projectDir ?? 'global'}`;
+
+export const parseTargetKey = (key: string): { agent: string; projectDir?: string } => {
+  const i = key.indexOf('\n');
+  const agent = key.slice(0, i);
+  const scope = key.slice(i + 1);
+  return scope === 'global' ? { agent } : { agent, projectDir: scope };
+};
+
+export const errText = (err: unknown): string =>
+  err instanceof Error ? err.message : String(err);
+
+export interface Store {
+  snapshot: HubSnapshot | null;
+  auth: AuthState | null;
+  loggedIn: boolean;
+  updates: UpdateEntry[];
+  marketItems: SkillListItem[] | null;
+  collections: Collection[] | null;
+
+  view: View;
+  setView: (v: View) => void;
+  scope: ScopeFilter;
+  setScope: (s: ScopeFilter) => void;
+  query: string;
+  setQuery: (q: string) => void;
+  marketTab: MarketTab;
+  setMarketTab: (t: MarketTab) => void;
+  settingsTab: SettingsTab;
+  setSettingsTab: (t: SettingsTab) => void;
+  expanded: Record<string, boolean>;
+  toggleExpanded: (skill: string) => void;
+
+  sync: SyncModalState | null;
+  openSync: (s: SyncModalState) => void;
+  closeSync: () => void;
+  toggleSyncTarget: (key: string) => void;
+  openRegistrySync: (skill: string) => void;
+
+  historyFor: string | null;
+  setHistoryFor: (skill: string | null) => void;
+  loginOpen: boolean;
+  setLoginOpen: (open: boolean) => void;
+
+  toastMsg: string;
+  toast: (msg: string) => void;
+  lastScan: Date | null;
+  setLastScan: (d: Date) => void;
+  updaterVersion: string | null;
+  restoredBackups: Record<string, boolean>;
+  markBackupRestored: (id: string) => void;
+
+  refresh: () => Promise<HubSnapshot | null>;
+  refreshAuth: () => Promise<AuthState | null>;
+  refreshUpdates: () => Promise<void>;
+  loadMarket: () => Promise<void>;
+  loadCollections: () => Promise<void>;
+  /** 执行操作并把错误转为 toast */
+  run: (fn: () => Promise<void>) => void;
+}
+
+const AppContext = createContext<Store | null>(null);
+export const AppProvider = AppContext.Provider;
+
+export function useStore(): Store {
+  const store = useContext(AppContext);
+  if (!store) throw new Error('AppProvider missing');
+  return store;
+}
+
+export function useAppStore(): Store {
+  const [snapshot, setSnapshot] = useState<HubSnapshot | null>(null);
+  const [auth, setAuth] = useState<AuthState | null>(null);
+  const [updates, setUpdates] = useState<UpdateEntry[]>([]);
+  const [marketItems, setMarketItems] = useState<SkillListItem[] | null>(null);
+  const [collections, setCollections] = useState<Collection[] | null>(null);
+
+  const [view, setViewRaw] = useState<View>({ kind: 'local' });
+  const [scope, setScope] = useState<ScopeFilter>('all');
+  const [query, setQuery] = useState('');
+  const [marketTab, setMarketTab] = useState<MarketTab>('browse');
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>('sources');
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
+  const [sync, setSync] = useState<SyncModalState | null>(null);
+  const [historyFor, setHistoryFor] = useState<string | null>(null);
+  const [loginOpen, setLoginOpen] = useState(false);
+  const [toastMsg, setToastMsg] = useState('');
+  const [lastScan, setLastScan] = useState<Date | null>(null);
+  const [updaterVersion, setUpdaterVersion] = useState<string | null>(null);
+  const [restoredBackups, setRestoredBackups] = useState<Record<string, boolean>>({});
+
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const toast = useCallback((msg: string): void => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToastMsg(msg);
+    toastTimer.current = setTimeout(() => setToastMsg(''), 2400);
+  }, []);
+
+  const snapshotRef = useRef<HubSnapshot | null>(null);
+  snapshotRef.current = snapshot;
+  const authRef = useRef<AuthState | null>(null);
+  authRef.current = auth;
+  const marketRef = useRef<SkillListItem[] | null>(null);
+  marketRef.current = marketItems;
+
+  const refresh = useCallback(async (): Promise<HubSnapshot | null> => {
+    try {
+      const snap = await ripple.snapshot();
+      setSnapshot(snap);
+      return snap;
+    } catch (err) {
+      toast(`加载本地数据失败：${errText(err)}`);
+      return null;
+    }
+  }, [toast]);
+
+  const refreshUpdates = useCallback(async (): Promise<void> => {
+    try {
+      setUpdates(await ripple.checkUpdates());
+    } catch {
+      /* 检查失败不阻塞使用 */
+    }
+  }, []);
+
+  const refreshAuth = useCallback(async (): Promise<AuthState | null> => {
+    try {
+      const state = await ripple.authState();
+      setAuth(state);
+      if (state.loggedIn) void refreshUpdates();
+      return state;
+    } catch {
+      return null;
+    }
+  }, [refreshUpdates]);
+
+  const loadMarket = useCallback(async (): Promise<void> => {
+    try {
+      setMarketItems(await ripple.market({ sort_by: 'heat', page_size: 60 }));
+    } catch (err) {
+      setMarketItems([]);
+      toast(`加载技能市场失败：${errText(err)}`);
+    }
+  }, [toast]);
+
+  const loadCollections = useCallback(async (): Promise<void> => {
+    try {
+      setCollections(await ripple.collections());
+    } catch (err) {
+      setCollections([]);
+      toast(`加载合集失败：${errText(err)}`);
+    }
+  }, [toast]);
+
+  const run = useCallback(
+    (fn: () => Promise<void>): void => {
+      void fn().catch((err: unknown) => toast(errText(err)));
+    },
+    [toast],
+  );
+
+  const setView = useCallback((v: View): void => {
+    setViewRaw(v);
+    setQuery('');
+  }, []);
+
+  const toggleExpanded = useCallback((skill: string): void => {
+    setExpanded((e) => ({ ...e, [skill]: !e[skill] }));
+  }, []);
+
+  const openSync = useCallback((s: SyncModalState): void => setSync(s), []);
+  const closeSync = useCallback((): void => setSync(null), []);
+  const toggleSyncTarget = useCallback((key: string): void => {
+    setSync((s) => (s ? { ...s, selected: { ...s.selected, [key]: !s.selected[key] } } : s));
+  }, []);
+
+  const openRegistrySync = useCallback((skill: string): void => {
+    const snap = snapshotRef.current;
+    const selected: Record<string, boolean> = {};
+    if (snap) {
+      for (const i of snap.installs) {
+        if (i.skill === skill) {
+          selected[targetKey(i.agent, i.scope === 'global' ? undefined : i.scope)] = true;
+        }
+      }
+    }
+    const item = marketRef.current?.find((m) => m.name === skill) ?? null;
+    setSync({
+      skill,
+      title: item?.display_name ?? skill,
+      mode: 'registry',
+      version: item?.version ?? null,
+      selected,
+    });
+  }, []);
+
+  const markBackupRestored = useCallback((id: string): void => {
+    setRestoredBackups((r) => ({ ...r, [id]: true }));
+  }, []);
+
+  // ---- Deep Link：ripple://install?skill=<slug> ----
+  const handleDeepLink = useCallback(
+    (url: string): void => {
+      let skill: string | null = null;
+      try {
+        const u = new URL(url);
+        const action = u.hostname || u.pathname.replace(/\//g, '');
+        if (u.protocol === 'ripple:' && action === 'install') skill = u.searchParams.get('skill');
+      } catch {
+        /* 非法 URL 忽略 */
+      }
+      if (!skill) return;
+      if (!authRef.current?.loggedIn) {
+        setLoginOpen(true);
+        toast(`登录后可安装「${skill}」`);
+        return;
+      }
+      setViewRaw({ kind: 'market' });
+      setMarketTab('browse');
+      openRegistrySync(skill);
+    },
+    [openRegistrySync, toast],
+  );
+  const deepLinkRef = useRef(handleDeepLink);
+  deepLinkRef.current = handleDeepLink;
+
+  // ---- 启动：拉取 snapshot + authState，订阅 deep link / updater ----
+  useEffect(() => {
+    const offDeep = ripple.onDeepLink((url) => deepLinkRef.current(url));
+    const offUpdater = ripple.onUpdaterEvent((ev) => {
+      if (ev.type === 'downloaded') setUpdaterVersion(ev.version ?? '');
+    });
+    void (async () => {
+      await Promise.all([refresh(), refreshAuth()]);
+      setLastScan(new Date());
+    })();
+    return () => {
+      offDeep();
+      offUpdater();
+    };
+    // 仅启动时执行一次（refresh/refreshAuth 引用稳定）
+  }, [refresh, refreshAuth]);
+
+  const loggedIn = auth?.loggedIn ?? false;
+
+  // ---- 进入市场 / 合集时按需加载远程数据 ----
+  useEffect(() => {
+    if (view.kind === 'market' && loggedIn && marketItems === null) void loadMarket();
+  }, [view.kind, loggedIn, marketItems, loadMarket]);
+  useEffect(() => {
+    if (view.kind === 'market' && marketTab === 'collections' && loggedIn && collections === null) {
+      void loadCollections();
+    }
+  }, [view.kind, marketTab, loggedIn, collections, loadCollections]);
+
+  return {
+    snapshot,
+    auth,
+    loggedIn,
+    updates,
+    marketItems,
+    collections,
+    view,
+    setView,
+    scope,
+    setScope,
+    query,
+    setQuery,
+    marketTab,
+    setMarketTab,
+    settingsTab,
+    setSettingsTab,
+    expanded,
+    toggleExpanded,
+    sync,
+    openSync,
+    closeSync,
+    toggleSyncTarget,
+    openRegistrySync,
+    historyFor,
+    setHistoryFor,
+    loginOpen,
+    setLoginOpen,
+    toastMsg,
+    toast,
+    lastScan,
+    setLastScan,
+    updaterVersion,
+    restoredBackups,
+    markBackupRestored,
+    refresh,
+    refreshAuth,
+    refreshUpdates,
+    loadMarket,
+    loadCollections,
+    run,
+  };
+}

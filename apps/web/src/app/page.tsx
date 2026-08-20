@@ -1,8 +1,11 @@
-export default function HomePage() {
+import { Suspense } from 'react';
+import type { ReactElement } from 'react';
+import { HomeView } from '@/components/home/home-view';
+
+export default function HomePage(): ReactElement {
   return (
-    <main style={{ padding: 48, textAlign: 'center' }}>
-      <h1 style={{ color: '#3f4438' }}>Ripple</h1>
-      <p>One Drop, Endless Ripples. — 新版首页在 ripple-ts-rewrite 任务 4.3 落地。</p>
-    </main>
+    <Suspense>
+      <HomeView />
+    </Suspense>
   );
 }

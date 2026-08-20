@@ -10,7 +10,7 @@ Ripple 目前是 Python(FastAPI) + TypeScript(Next.js) 双栈，仅有 Web 端�
 - **BREAKING** Web 前端按新原型重构：新首页（Hero 水波动画、推荐/最热/最新/关注信息流、热度榜、分类筛选、⌘K 搜索浮层）、技能详情页（安装条、热度统计条、文件树预览、TOC、版本历史、评论）、合辑（Collections）页、文档站（生态概览/CLI/桌面客户端/Skill 规范）、个人中心，视觉体系切换为原型的橄榄绿色板与 Noto Sans SC/Space Grotesk 字体。
 - **新增热度体系**：热度 = 传播×1 + 收藏×2 + 评论×4 + 查询×0.05，按周归一化；驱动信息流排序、热度榜与详情页统计（现有 stats/size_tier 演进为该模型）。
 - **新增桌面客户端**（Linux/macOS/Windows，通用前端栈：Electron + React，与 Web 共享 UI 组件与类型）：本地技能列表（全部/仅全局/仅项目）、Agent 侧边栏与项目目录管理、安装矩阵与展开式逐处管理（启用/禁用/更新/卸载）、版本不一致检测与一键统一、同步弹窗、历史记录与回退、技能市场（浏览/排行榜/合集）、更新中心与全部更新、设置（中心存储位置、symlink/复制分发、GitHub 仓库源、ZIP 导入、Deep Link `ripple://`）、备份管理器、登录/本地模式门控。
-- **BREAKING** CLI 重写为 `ripple`（npm 包名即 `ripple`）：能力对齐桌面客户端（服务侧 + 本地技能管理），命令设计遵循现代 CLI 规范（参考 lark-cli：名词+动词分组命令、`--json` 机器可读输出、非交互模式、明确退出码），零/低依赖纯 Node 实现（移除对外部 `zip`/`unzip` 的依赖）。
+- **BREAKING** CLI 重写为 `ripple`（npm 包名 `@hellosz/ripple`（`ripple` 已被占用））：能力对齐桌面客户端（服务侧 + 本地技能管理），命令设计遵循现代 CLI 规范（参考 lark-cli：名词+动词分组命令、`--json` 机器可读输出、非交互模式、明确退出码），零/低依赖纯 Node 实现（移除对外部 `zip`/`unzip` 的依赖）。
 - **新增共享本地技能管理核心库**（桌面客户端与 CLI 共用）：SSOT 中心存储（`~/.ripple/skills` 或共享 `~/.agents/skills`，可平滑迁移）、symlink/文件复制两种分发方式、多 Agent 适配器（Claude Code、Codex、OpenCode 等，可扩展）、项目级目录、操作前自动备份（保留最近 20 份）与任意版本回退、多来源安装（Ripple 服务、GitHub 仓库[分支+子目录]、ZIP 离线导入，后两者无需登录）。
 - **仓库迁移与分发**：git 迁移到 GitHub（项目名 Ripple）；monorepo 重组为 pnpm workspace（server / web / desktop / cli / 共享 packages）；CLI 经 npm registry 发布，桌面客户端经 GitHub Release 分发（三平台安装包），CI 由 GitHub Actions 承担。
 

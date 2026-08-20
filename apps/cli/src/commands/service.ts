@@ -135,7 +135,7 @@ export function registerServiceCommands(program: Command, getCtx: () => CliConte
     .action(async () => {
       const ctx = getCtx();
       let latest = '';
-      let hint = 'npm i -g ripple@latest';
+      let hint = 'npm i -g @hellosz/ripple@latest';
       try {
         const info = await ctx.client.meta.cliVersion();
         latest = info.latest;
@@ -143,7 +143,7 @@ export function registerServiceCommands(program: Command, getCtx: () => CliConte
       } catch {
         // 服务不可达时直接查 npm registry
         try {
-          const res = await fetch('https://registry.npmjs.org/ripple/latest');
+          const res = await fetch('https://registry.npmjs.org/@hellosz%2Fripple/latest');
           if (res.ok) latest = ((await res.json()) as { version?: string }).version ?? '';
         } catch {
           /* 离线 */

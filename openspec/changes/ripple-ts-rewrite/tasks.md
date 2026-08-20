@@ -34,18 +34,18 @@
 
 ## 4. 共享 UI 与 Web（apps/web）
 
-- [ ] 4.1 `packages/ui`：设计 token（橄榄绿色板/字体/圆角阴影）、基础组件（按钮/chip/卡片/弹窗/toast/头像/开关）、涟漪 Logo
-- [ ] 4.2 Next.js 骨架：App Router 布局、Header/Footer、API base 环境变量化（移除 localhost 硬编码 rewrite）、认证与游客 session 接入 api-client
-- [ ] 4.3 首页：Hero（水波 canvas 动画：雨滴/毛细波/重力波/鼠标交互、卸载清理）、信息流（四 tab 排序、卡片全要素、复制安装命令、加载更多、空态、筛选说明条）
-- [ ] 4.4 搜索浮层（⌘K、live 结果、Enter 应用、ESC 关闭）与右栏（热度榜 Top5、分类 chips、社区寄语卡）
-- [ ] 4.5 详情页：面包屑/标题/作者、安装条（复制/ZIP/安装）、统计条（含传播收藏操作）、Markdown 章节渲染、文件树浏览器（md 渲染+代码高亮+复制源码）、TOC 滚动定位、版本卡与历史展开、浏览计数上报
-- [ ] 4.6 评论区：嵌套展示、发布/回复、相对时间
-- [ ] 4.7 预览弹窗（热度分解条形图）与合辑页（卡片网格、展开清单、装齐整套）
-- [ ] 4.8 个人中心：资料卡与统计、我发布的/我收藏的 tabs、资料编辑与 AI 画像生成
-- [ ] 4.9 文档站四篇：生态概览/CLI/桌面客户端/Skill 规范（内容对齐原型文档页）
-- [ ] 4.10 实时通知：SSE 接入、ripple 吐司与揭示弹窗（consume）、skill_update 提示、游客 touch
-- [ ] 4.11 安装入口 Deep Link：`ripple://install` 唤起 + 失败回退复制命令
-- [ ] 4.12 管理后台页面迁移：总览/技能表/用户表（admin 门控）
+- [x] 4.1 `packages/ui`：设计 token（橄榄绿色板/字体/圆角阴影）、基础组件（按钮/chip/卡片/弹窗/toast/头像/开关）、涟漪 Logo
+- [x] 4.2 Next.js 骨架：App Router 布局、Header/Footer、API base 环境变量化（移除 localhost 硬编码 rewrite）、认证与游客 session 接入 api-client
+- [x] 4.3 首页：Hero（水波 canvas 动画：雨滴/毛细波/重力波/鼠标交互、卸载清理）、信息流（四 tab 排序、卡片全要素、复制安装命令、加载更多、空态、筛选说明条）
+- [x] 4.4 搜索浮层（⌘K、live 结果、Enter 应用、ESC 关闭）与右栏（热度榜 Top5、分类 chips、社区寄语卡）
+- [x] 4.5 详情页：面包屑/标题/作者、安装条（复制/ZIP/安装）、统计条（含传播收藏操作）、Markdown 章节渲染、文件树浏览器（md 渲染+代码高亮+复制源码）、TOC 滚动定位、版本卡与历史展开、浏览计数上报
+- [x] 4.6 评论区：嵌套展示、发布/回复、相对时间
+- [x] 4.7 预览弹窗（热度分解条形图）与合辑页（卡片网格、展开清单、装齐整套）
+- [x] 4.8 个人中心：资料卡与统计、我发布的/我收藏的 tabs、资料编辑与 AI 画像生成
+- [x] 4.9 文档站四篇：生态概览/CLI/桌面客户端/Skill 规范（内容对齐原型文档页）
+- [x] 4.10 实时通知：SSE 接入、ripple 吐司与揭示弹窗（consume）、skill_update 提示、游客 touch
+- [x] 4.11 安装入口 Deep Link：`ripple://install` 唤起 + 失败回退复制命令
+- [x] 4.12 管理后台页面迁移：总览/技能表/用户表（admin 门控）
 - [ ] 4.13 Playwright e2e：迁移现有 5 个视觉 spec 到新 UI，新增业务流用例（搜索→详情→复制、登录→点赞→ripple、上传）并接入 CI
 
 ## 5. 本地技能核心（packages/hub）
@@ -71,21 +71,21 @@
 
 ## 7. 桌面客户端（apps/desktop）
 
-- [ ] 7.1 Electron 骨架：electron-vite + React、主进程集成 hub、类型化 IPC contract、1280×820 窗口与主题
-- [ ] 7.2 侧边栏：连接状态卡、主导航（锁标/徽标）、Agent 列表（检测圆点+计数）、项目目录（添加/移除）、重新扫描、设置入口、状态栏
-- [ ] 7.3 本地技能列表：范围 chips、搜索、冲突横幅与一键统一、技能行（徽章/安装矩阵 chips/多版本显示）、展开逐处管理（更新/开关/卸载）
-- [ ] 7.4 同步弹窗与历史弹窗（时间线+回退）
-- [ ] 7.5 技能市场：浏览网格/排行榜/合集三视图、安装走同步弹窗、登录门控页
-- [ ] 7.6 更新中心：可更新列表、逐项更新、全部更新、空态、导航徽标
-- [ ] 7.7 设置：技能来源 tab（存储位置/分发方式/仓库管理/ZIP 导入/Deep Link 复制）与备份管理 tab
-- [ ] 7.8 登录/服务配置弹窗（服务地址、登录/保存/退出、token 安全存储）
-- [ ] 7.9 Deep Link：`ripple://` 协议注册（三平台）、install 参数解析进入安装流程、单实例聚焦
-- [ ] 7.10 electron-updater 自动更新（GitHub Release provider）
+- [x] 7.1 Electron 骨架：electron-vite + React、主进程集成 hub、类型化 IPC contract、1280×820 窗口与主题
+- [x] 7.2 侧边栏：连接状态卡、主导航（锁标/徽标）、Agent 列表（检测圆点+计数）、项目目录（添加/移除）、重新扫描、设置入口、状态栏
+- [x] 7.3 本地技能列表：范围 chips、搜索、冲突横幅与一键统一、技能行（徽章/安装矩阵 chips/多版本显示）、展开逐处管理（更新/开关/卸载）
+- [x] 7.4 同步弹窗与历史弹窗（时间线+回退）
+- [x] 7.5 技能市场：浏览网格/排行榜/合集三视图、安装走同步弹窗、登录门控页
+- [x] 7.6 更新中心：可更新列表、逐项更新、全部更新、空态、导航徽标
+- [x] 7.7 设置：技能来源 tab（存储位置/分发方式/仓库管理/ZIP 导入/Deep Link 复制）与备份管理 tab
+- [x] 7.8 登录/服务配置弹窗（服务地址、登录/保存/退出、token 安全存储）
+- [x] 7.9 Deep Link：`ripple://` 协议注册（三平台）、install 参数解析进入安装流程、单实例聚焦
+- [x] 7.10 electron-updater 自动更新（GitHub Release provider）
 - [ ] 7.11 桌面冒烟测试（主流程：扫描→安装→同步→回退）三平台手动验证清单 + 可自动化部分接入 CI
 
 ## 8. 发布与切换收尾
 
-- [ ] 8.1 npm 包名使用 `ripple`（`npm view ripple` 验证发布权限，必要时尽早占位），配置 NPM_TOKEN，`release-cli.yml` tag 发布流水线，首发 CLI
+- [ ] 8.1 npm 包名使用 `ripple`（`npm 包名定为 @hellosz/ripple（ripple 被 trueadm 的框架占用）），配置 NPM_TOKEN，`release-cli.yml` tag 发布流水线，首发 CLI
 - [ ] 8.2 `release-desktop.yml` 三平台矩阵构建上传 GitHub Release（含 electron-updater 元数据），首发桌面客户端
 - [ ] 8.3 服务端部署切换：新 server 指向既有 PostgreSQL/Redis/MinIO（baseline stamp），前端切换至新 API，双栈过渡验证后下线 Python 服务
 - [ ] 8.4 `/api/cli/version` 改为返回 npm 版本信息；退役 `backend/static/cli/ripple-cli.tgz`

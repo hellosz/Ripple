@@ -28,7 +28,7 @@ CLI MUST 通过 npm registry 发布（包含 bin `ripple`），由 `v*` tag 触�
 
 #### Scenario: 打 tag 发布 CLI
 - **WHEN** 推送 tag v1.0.0
-- **THEN** CI 构建并发布 ripple@1.0.0，`npm i -g ripple` 后 `ripple --version` 输出 1.0.0
+- **THEN** CI 构建并发布 @hellosz/ripple@1.0.0，`npm i -g @hellosz/ripple` 后 `ripple --version` 输出 1.0.0
 
 ### Requirement: 桌面客户端 GitHub Release 发布
 桌面客户端 MUST 经 GitHub Release 分发：tag 触发三平台矩阵构建（Linux AppImage+deb、macOS dmg、Windows nsis exe），产物与 electron-updater 元数据（latest*.yml）上传至对应 Release；已安装客户端可据此自动更新。
@@ -49,4 +49,4 @@ monorepo MUST 使用统一的版本管理流程（changesets）：变更附带 c
 
 #### Scenario: 旧 CLI 收到迁移提示
 - **WHEN** 旧版 CLI 执行 self-update 检查
-- **THEN** 收到指向 `npm i -g ripple` 的升级指引
+- **THEN** 收到指向 `npm i -g @hellosz/ripple` 的升级指引
