@@ -114,7 +114,7 @@ ripple self-update
 ### D8 GitHub 迁移与分发
 
 - 迁移：GitHub 新建仓库 `Ripple`（保留全部历史：`git push --mirror`），origin 切换；GitLab 远端保留只读过渡期。
-- 版本与发布：changesets 管版本；`v*` tag 触发 GitHub Actions——`release-cli.yml` 构建并 `npm publish`（包名 `@hellosz/ripple`，NPM_TOKEN secret）；`release-desktop.yml` 三平台矩阵 electron-builder 构建（AppImage+deb / dmg / nsis exe）上传 GitHub Release，electron-updater 据此自动更新。
+- 版本与发布：changesets 管版本；`cli-v*` / `desktop-v*` tag 触发 GitHub Actions——`release-cli.yml` 构建并 `npm publish`（包名 `@hellosz/ripple`，NPM_TOKEN secret）；`release-desktop.yml` 三平台矩阵 electron-builder 构建（AppImage+deb / dmg / nsis exe）上传 GitHub Release，electron-updater 据此自动更新。
 - CI：PR 触发 lint + typecheck + vitest + web build + Playwright（关键流程）。
 - 旧 `backend/static/cli/ripple-cli.tgz` 自托管分发废弃，`/api/cli/version` 改为返回 npm dist-tag 信息供 `self-update` 提示。
 

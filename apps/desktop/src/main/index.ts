@@ -86,6 +86,18 @@ function createWindow(): void {
       mainWindow.webContents.send(DEEPLINK_CHANNEL, pendingDeepLink);
       pendingDeepLink = null;
     }
+    // 冒烟模式：渲染完成即报告并退出（CI 无头验证）
+    if (process.env.RIPPLE_SMOKE) {
+      console.log('RIPPLE_SMOKE_OK');
+      setTimeout(() => app.exit(0), 200);
+    }
+  });
+
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    if (process.env.RIPPLE_SMOKE) {
+      console.error('RIPPLE_SMOKE_RENDER_GONE', details.reason);
+      app.exit(1);
+    }
   });
 
   if (process.env.ELECTRON_RENDERER_URL) {

@@ -31,7 +31,12 @@
     "legacy:test": "cd backend && UV_CACHE_DIR=/tmp/uv-cache uv run pytest -v"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild", "@fission-ai/openspec", "electron", "electron-winstaller"]
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "@fission-ai/openspec",
+      "electron",
+      "electron-winstaller"
+    ]
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.0",
@@ -39,9 +44,13 @@
     "@fission-ai/openspec": "^1.2.0",
     "@playwright/test": "^1.58.2",
     "@types/node": "^22.15.0",
+    "@types/pg": "^8.11.0",
+    "bcryptjs": "^3.0.2",
     "chrome-devtools-mcp": "^0.20.0",
     "concurrently": "^9.1.0",
     "eslint": "^9.30.0",
+    "fflate": "^0.8.2",
+    "pg": "^8.14.0",
     "playwright": "^1.58.2",
     "prettier": "^3.5.0",
     "tsx": "^4.19.0",

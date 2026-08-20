@@ -27,7 +27,7 @@ GitHub Actions MUST 在 PR 与 main push 上执行：lint、typecheck、单元�
 CLI MUST 通过 npm registry 发布（包含 bin `ripple`），由 `v*` tag 触发的 GitHub Actions workflow 执行构建与 `npm publish`（NPM_TOKEN secret）。包 MUST 内嵌单一来源版本号，发布产物为自包含单文件（不依赖仓库内其他包的运行时安装）。
 
 #### Scenario: 打 tag 发布 CLI
-- **WHEN** 推送 tag v1.0.0
+- **WHEN** 推送 tag cli-v1.0.0
 - **THEN** CI 构建并发布 @hellosz/ripple@1.0.0，`npm i -g @hellosz/ripple` 后 `ripple --version` 输出 1.0.0
 
 ### Requirement: 桌面客户端 GitHub Release 发布

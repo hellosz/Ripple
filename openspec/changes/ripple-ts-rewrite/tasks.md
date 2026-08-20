@@ -46,7 +46,7 @@
 - [x] 4.10 实时通知：SSE 接入、ripple 吐司与揭示弹窗（consume）、skill_update 提示、游客 touch
 - [x] 4.11 安装入口 Deep Link：`ripple://install` 唤起 + 失败回退复制命令
 - [x] 4.12 管理后台页面迁移：总览/技能表/用户表（admin 门控）
-- [ ] 4.13 Playwright e2e：迁移现有 5 个视觉 spec 到新 UI，新增业务流用例（搜索→详情→复制、登录→点赞→ripple、上传）并接入 CI
+- [x] 4.13 Playwright e2e：迁移现有 5 个视觉 spec 到新 UI，新增业务流用例（搜索→详情→复制、登录→点赞→ripple、上传）并接入 CI
 
 ## 5. 本地技能核心（packages/hub）
 
@@ -81,12 +81,12 @@
 - [x] 7.8 登录/服务配置弹窗（服务地址、登录/保存/退出、token 安全存储）
 - [x] 7.9 Deep Link：`ripple://` 协议注册（三平台）、install 参数解析进入安装流程、单实例聚焦
 - [x] 7.10 electron-updater 自动更新（GitHub Release provider）
-- [ ] 7.11 桌面冒烟测试（主流程：扫描→安装→同步→回退）三平台手动验证清单 + 可自动化部分接入 CI
+- [x] 7.11 桌面冒烟测试（主流程：扫描→安装→同步→回退）三平台手动验证清单 + 可自动化部分接入 CI
 
 ## 8. 发布与切换收尾
 
-- [ ] 8.1 npm 包名使用 `ripple`（`npm 包名定为 @hellosz/ripple（ripple 被 trueadm 的框架占用）），配置 NPM_TOKEN，`release-cli.yml` tag 发布流水线，首发 CLI
-- [ ] 8.2 `release-desktop.yml` 三平台矩阵构建上传 GitHub Release（含 electron-updater 元数据），首发桌面客户端
+- [x] 8.1 npm 包名使用 `ripple`（`npm 包名定为 @hellosz/ripple（ripple 被 trueadm 的框架占用）），配置 NPM_TOKEN，`release-cli.yml` tag 发布流水线，首发 CLI
+- [x] 8.2 `release-desktop.yml` 三平台矩阵构建上传 GitHub Release（含 electron-updater 元数据），首发桌面客户端
 - [ ] 8.3 服务端部署切换：新 server 指向既有 PostgreSQL/Redis/MinIO（baseline stamp），前端切换至新 API，双栈过渡验证后下线 Python 服务
 - [ ] 8.4 `/api/cli/version` 改为返回 npm 版本信息；退役 `backend/static/cli/ripple-cli.tgz`
 - [ ] 8.5 删除旧 `backend/`、`frontend/`、`cli/` 目录，更新 README/AGENTS.md/docker-compose 与开发文档到新布局

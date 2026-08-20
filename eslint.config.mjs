@@ -15,8 +15,8 @@ export default tseslint.config(
       'backend/**',
       'skills/**',
       'tmp/**',
-      // 旧 e2e 视觉断言（任务 4.13 迁移到新 UI 后移除此行）
-      'e2e/**',
+      'test-results/**',
+      'playwright-report/**',
     ],
   },
   js.configs.recommended,

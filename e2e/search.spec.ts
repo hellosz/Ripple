@@ -1,17 +1,24 @@
-import { test, expect } from "@playwright/test";
+import { expect, test } from '@playwright/test';
+import { E2E_SKILL } from './global-setup';
 
-test("search input is tall with a clear border", async ({ page }) => {
-  await page.goto("/");
+test.describe('搜索浮层', () => {
+  test('Ctrl+K 唤起、即时结果、Enter 应用、ESC 关闭', async ({ page }) => {
+    await page.goto('/');
+    await page.keyboard.press('Control+k');
+    const input = page.getByRole('dialog', { name: '搜索' }).locator('input');
+    await expect(input).toBeVisible();
 
-  const input = page.getByPlaceholder("Search skills...").first();
-  await expect(input).toBeVisible();
+    await input.fill('考古');
+    await expect(page.getByText('e2e-git-archaeologist').first()).toBeVisible({ timeout: 10_000 });
 
-  const box = await input.boundingBox();
-  expect(box!.height).toBeGreaterThanOrEqual(48);
+    await input.press('Enter');
+    await expect(input).toBeHidden();
+    // 筛选说明条出现且可清除
+    await expect(page.getByText(/搜索/).first()).toBeVisible();
+    await expect(page.getByText(`ripple install ${E2E_SKILL}`).first()).toBeVisible();
 
-  const borderColor = await input.evaluate(
-    (el) => getComputedStyle(el).borderTopColor
-  );
-  // border must be a visible (non-transparent) color
-  expect(borderColor).not.toBe("rgba(0, 0, 0, 0)");
+    await page.keyboard.press('Control+k');
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog', { name: '搜索' })).toBeHidden();
+  });
 });

@@ -1,0 +1,36 @@
+name: Release CLI
+
+on:
+  push:
+    tags: ['cli-v*']
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile
+      - name: Verify tag matches package version
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#cli-v}"
+          PKG_VERSION=$(node -p "require('./apps/cli/package.json').version")
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "Tag $TAG_VERSION != package.json $PKG_VERSION" && exit 1
+          fi
+      - name: Build
+        run: pnpm --dir apps/cli build
+      - name: Smoke test binary
+        run: node apps/cli/dist/index.js --version
+      - name: Publish to npm
+        run: pnpm --dir apps/cli publish --no-git-checks --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

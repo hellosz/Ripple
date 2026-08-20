@@ -1,0 +1,39 @@
+name: Release Desktop
+
+on:
+  push:
+    tags: ['desktop-v*']
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest # AppImage + deb
+          - os: macos-latest # dmg
+          - os: windows-latest # nsis
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Verify tag matches package version
+        shell: bash
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#desktop-v}"
+          PKG_VERSION=$(node -p "require('./apps/desktop/package.json').version")
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "Tag $TAG_VERSION != package.json $PKG_VERSION" && exit 1
+          fi
+      - name: Build and publish to GitHub Release
+        # electron-builder 上传安装包与 electron-updater 元数据（latest*.yml）
+        run: pnpm --dir apps/desktop build && pnpm --dir apps/desktop exec electron-builder --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

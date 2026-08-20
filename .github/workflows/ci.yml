@@ -48,3 +48,69 @@ jobs:
         run: pnpm test
       - name: Build
         run: pnpm build
+
+  desktop-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build desktop
+        run: pnpm --dir apps/desktop build
+      - name: Headless smoke (main + renderer boot)
+        run: |
+          cd apps/desktop
+          RIPPLE_SMOKE=1 xvfb-run -a npx electron . --no-sandbox --disable-gpu | tee smoke.log
+          grep -q RIPPLE_SMOKE_OK smoke.log
+
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: ripple
+          POSTGRES_USER: ripple
+          POSTGRES_PASSWORD: ripple
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U ripple" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+      minio:
+        image: bitnami/minio:latest
+        env:
+          MINIO_ROOT_USER: ripple
+          MINIO_ROOT_PASSWORD: ripple123456
+        ports: ['9000:9000']
+    env:
+      E2E_DATABASE_URL: postgresql://ripple:ripple@localhost:5432/ripple
+      E2E_REDIS_URL: redis://localhost:6379/0
+      DATABASE_URL: postgresql://ripple:ripple@localhost:5432/ripple
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Migrate database
+        run: pnpm db:upgrade
+      - name: Build web
+        run: pnpm --dir apps/web build
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+      - name: E2E tests
+        run: npx playwright test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: test-results/
