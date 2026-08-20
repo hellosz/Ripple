@@ -61,13 +61,13 @@
 
 ## 6. CLI（apps/cli）
 
-- [ ] 6.1 CLI 骨架：commander 分组命令 + 顶层捷径、全局 `--json`/`--yes`/`--server`/`--token`、退出码约定、非 TTY 降级、tsup 单文件构建与版本注入
-- [ ] 6.2 配置分层：参数 > 环境变量 > `~/.ripplerc` > 默认值，`config get|set`（含来源显示）
-- [ ] 6.3 认证命令：login（设备码，本机开浏览器/`--remote` 打印码）、logout、whoami
-- [ ] 6.4 服务侧命令：search/info/list/publish（纯 Node 打包、评级建议展示、`--channel gray`）
-- [ ] 6.5 本地命令：install/update(--all)/uninstall/sync/enable/disable、agent list|scan、source、backup（全部走 hub）
-- [ ] 6.6 self-update（npm 版本对比提示）与旧命令迁移对照文档 + 兼容别名
-- [ ] 6.7 CLI 集成测试：JSON 输出契约、退出码、非交互破坏操作拒绝、配置优先级
+- [x] 6.1 CLI 骨架：commander 分组命令 + 顶层捷径、全局 `--json`/`--yes`/`--server`/`--token`、退出码约定、非 TTY 降级、tsup 单文件构建与版本注入
+- [x] 6.2 配置分层：参数 > 环境变量 > `~/.ripplerc` > 默认值，`config get|set`（含来源显示）
+- [x] 6.3 认证命令：login（设备码，本机开浏览器/`--remote` 打印码）、logout、whoami
+- [x] 6.4 服务侧命令：search/info/list/publish（纯 Node 打包、评级建议展示、`--channel gray`）
+- [x] 6.5 本地命令：install/update(--all)/uninstall/sync/enable/disable、agent list|scan、source、backup（全部走 hub）
+- [x] 6.6 self-update（npm 版本对比提示）与旧命令迁移对照文档 + 兼容别名
+- [x] 6.7 CLI 集成测试：JSON 输出契约、退出码、非交互破坏操作拒绝、配置优先级
 
 ## 7. 桌面客户端（apps/desktop）
 

@@ -10,7 +10,9 @@ export default defineConfig({
   format: 'esm',
   target: 'node20',
   clean: true,
-  banner: { js: '#!/usr/bin/env node' },
+  banner: {
+    js: "#!/usr/bin/env node\nimport { createRequire as __cliCreateRequire } from 'node:module';const require = __cliCreateRequire(import.meta.url);",
+  },
   // 单文件产物：workspace 包与全部依赖一并打包
   noExternal: [/.*/],
   define: {
