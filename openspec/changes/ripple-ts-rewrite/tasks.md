@@ -9,10 +9,10 @@
 
 ## 2. 共享包：契约与技能核心
 
-- [ ] 2.1 `packages/contract`：用 zod 定义全量 API schema（认证/技能/互动/热度/推送/评论/合辑/关注/管理），导出推断类型
-- [ ] 2.2 `packages/skill-core`：SKILL.md frontmatter 解析、ZIP 安全校验（路径穿越/大小限制，纯 Node 解压）、文本文件抽取（语言映射/sha256）
-- [ ] 2.3 `packages/skill-core`：S/A/B/C 评级器与改进建议，移植现有 Python 测试用例为表驱动测试锁定行为一致
-- [ ] 2.4 `packages/api-client`：基于 contract 的类型安全 HTTP client（token/guest-session 注入、错误规范化）与 SSE client（自动重连、订阅者模式）
+- [x] 2.1 `packages/contract`：用 zod 定义全量 API schema（认证/技能/互动/热度/推送/评论/合辑/关注/管理），导出推断类型
+- [x] 2.2 `packages/skill-core`：SKILL.md frontmatter 解析、ZIP 安全校验（路径穿越/大小限制，纯 Node 解压）、文本文件抽取（语言映射/sha256）
+- [x] 2.3 `packages/skill-core`：S/A/B/C 评级器与改进建议，移植现有 Python 测试用例为表驱动测试锁定行为一致
+- [x] 2.4 `packages/api-client`：基于 contract 的类型安全 HTTP client（token/guest-session 注入、错误规范化）与 SSE client（自动重连、订阅者模式）
 
 ## 3. 服务端（apps/server）
 
