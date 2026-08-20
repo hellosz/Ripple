@@ -45,9 +45,25 @@ export function heatBars(stats: SkillStats): { label: string; value: number }[] 
 }
 
 export async function copyText(text: string): Promise<boolean> {
+  // navigator.clipboard 仅安全上下文可用；HTTP 内网访问降级到 execCommand
   try {
-    await navigator.clipboard.writeText(text);
-    return true;
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    /* 走降级路径 */
+  }
+  try {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(textarea);
+    return ok;
   } catch {
     return false;
   }
