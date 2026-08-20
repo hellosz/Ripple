@@ -50,14 +50,14 @@
 
 ## 5. 本地技能核心（packages/hub）
 
-- [ ] 5.1 状态层：state.json 原子读写、SSOT 目录管理、损坏时目录扫描重建
-- [ ] 5.2 分发层：symlink/junction/copy 三级策略与降级记录、启用/禁用/卸载、分发方式切换重建
-- [ ] 5.3 Agent 适配器注册表（Claude Code/Codex/OpenCode/Cursor 等 + detect）、项目目录管理、扫描（unmanaged 识别、版本冲突检测）
-- [ ] 5.4 安装与同步：多目标同步语义（勾选集合收敛）、版本统一、默认 Agent 逻辑
-- [ ] 5.5 备份与历史：操作前自动 zip 快照、20 份 FIFO 保留、恢复/删除、操作时间线与任意版本回退
-- [ ] 5.6 来源层：Ripple 服务（api-client）、GitHub tarball（分支/子目录扫描 SKILL.md）、本地 ZIP 导入；来源仓库增删
-- [ ] 5.7 存储位置切换平滑迁移（内置 ↔ 共享目录）
-- [ ] 5.8 hub 单元测试：三平台路径语义（含 Windows junction/copy 降级）、备份保留、同步收敛、来源安装
+- [x] 5.1 状态层：state.json 原子读写、SSOT 目录管理、损坏时目录扫描重建
+- [x] 5.2 分发层：symlink/junction/copy 三级策略与降级记录、启用/禁用/卸载、分发方式切换重建
+- [x] 5.3 Agent 适配器注册表（Claude Code/Codex/OpenCode/Cursor 等 + detect）、项目目录管理、扫描（unmanaged 识别、版本冲突检测）
+- [x] 5.4 安装与同步：多目标同步语义（勾选集合收敛）、版本统一、默认 Agent 逻辑
+- [x] 5.5 备份与历史：操作前自动 zip 快照、20 份 FIFO 保留、恢复/删除、操作时间线与任意版本回退
+- [x] 5.6 来源层：Ripple 服务（api-client）、GitHub tarball（分支/子目录扫描 SKILL.md）、本地 ZIP 导入；来源仓库增删
+- [x] 5.7 存储位置切换平滑迁移（内置 ↔ 共享目录）
+- [x] 5.8 hub 单元测试：三平台路径语义（含 Windows junction/copy 降级）、备份保留、同步收敛、来源安装
 
 ## 6. CLI（apps/cli）
 

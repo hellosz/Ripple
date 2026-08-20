@@ -1,2 +1,8 @@
 // @ripple/hub — 本地技能管理核心（desktop/cli 共享，Node-only）
-export {};
+export * from './types.js';
+export * from './agents.js';
+export * from './state.js';
+export * from './fs-utils.js';
+export * from './tar.js';
+export * from './sources.js';
+export * from './hub.js';
