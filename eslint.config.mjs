@@ -9,10 +9,6 @@ export default tseslint.config(
       '**/node_modules/**',
       '**/out/**',
       '**/coverage/**',
-      // 旧栈（过渡期，不纳入新 lint 基线）
-      'frontend/**',
-      'cli/**',
-      'backend/**',
       'skills/**',
       'tmp/**',
       'test-results/**',

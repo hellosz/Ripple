@@ -22,13 +22,7 @@
     "changeset": "changeset",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
-    "docker:logs": "docker compose logs -f",
-    "legacy:env": "sh -c 'test -f backend/.env && echo \"backend/.env already exists, skipping\" || (cp backend/.env.example backend/.env && echo \"Created backend/.env\")'",
-    "legacy:dev:backend": "cd backend && UV_CACHE_DIR=/tmp/uv-cache uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",
-    "legacy:dev:frontend": "pnpm --dir frontend dev",
-    "legacy:db:upgrade": "cd backend && UV_CACHE_DIR=/tmp/uv-cache uv run alembic upgrade head",
-    "legacy:db:seed": "cd backend && UV_CACHE_DIR=/tmp/uv-cache uv run python seed_skills.py",
-    "legacy:test": "cd backend && UV_CACHE_DIR=/tmp/uv-cache uv run pytest -v"
+    "docker:logs": "docker compose logs -f"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

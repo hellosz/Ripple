@@ -3,8 +3,6 @@
 本文件是所有 AI 编码代理（Claude、Codex、Cursor 等）与人类协作者在本仓库工作时的统一约定，包含**系统规范**（架构、技术栈、代码/API/数据库/测试标准）与**开发工作流**（OpenSpec、分支与 PR、发布）。
 **核心原则：需求开发必须先走 OpenSpec 流程，先对齐规格、再写代码。**
 
-> **过渡期说明**：本文件描述 `ripple-ts-rewrite` 变更（见 `openspec/changes/ripple-ts-rewrite/`）确立的 TypeScript 全栈目标架构。在该变更完成切换前，仓库中仍存在旧结构（`backend/` FastAPI、`frontend/` 旧版、`cli/` 旧版）；旧栈只做保运行的最小修改，一切新开发面向新架构。旧栈的开发命令见 git 历史中的旧版 AGENTS.md 与 `README.md`。
-
 ---
 
 ## 1. 项目概览

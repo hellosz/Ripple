@@ -87,7 +87,7 @@
 
 - [x] 8.1 npm 包名使用 `ripple`（`npm 包名定为 @hellosz/ripple（ripple 被 trueadm 的框架占用）），配置 NPM_TOKEN，`release-cli.yml` tag 发布流水线，首发 CLI
 - [x] 8.2 `release-desktop.yml` 三平台矩阵构建上传 GitHub Release（含 electron-updater 元数据），首发桌面客户端
-- [ ] 8.3 服务端部署切换：新 server 指向既有 PostgreSQL/Redis/MinIO（baseline stamp），前端切换至新 API，双栈过渡验证后下线 Python 服务
-- [ ] 8.4 `/api/cli/version` 改为返回 npm 版本信息；退役 `backend/static/cli/ripple-cli.tgz`
-- [ ] 8.5 删除旧 `backend/`、`frontend/`、`cli/` 目录，更新 README/AGENTS.md/docker-compose 与开发文档到新布局
+- [x] 8.3 服务端部署切换：新 server 指向既有 PostgreSQL/Redis/MinIO（baseline stamp），前端切换至新 API，双栈过渡验证后下线 Python 服务
+- [x] 8.4 `/api/cli/version` 改为返回 npm 版本信息；退役 `backend/static/cli/ripple-cli.tgz`
+- [x] 8.5 删除旧 `backend/`、`frontend/`、`cli/` 目录，更新 README/AGENTS.md/docker-compose 与开发文档到新布局
 - [ ] 8.6 全量回归：spec Scenario 核对清单过一遍，e2e 绿灯，归档前审计
