@@ -36,3 +36,12 @@ Thumbs.db
 # Playwright
 /test-results/
 /playwright-report/
+
+# TS monorepo
+apps/*/dist/
+packages/*/dist/
+apps/web/.next/
+apps/web/next-env.d.ts
+apps/desktop/out/
+apps/desktop/release/
+*.tsbuildinfo

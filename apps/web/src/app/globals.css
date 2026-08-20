@@ -1,0 +1,24 @@
+@import 'tailwindcss';
+
+:root {
+  --rp-bg: #faf9f2;
+  --rp-ink: #3f4438;
+  --rp-body: #374151;
+  --rp-primary: #6b7f43;
+  --rp-primary-deep: #55663a;
+  --rp-primary-soft: #93a86b;
+  --rp-primary-pale: #b9c69a;
+  --rp-panel: #f1efe4;
+}
+
+body {
+  margin: 0;
+  background: var(--rp-bg);
+  color: var(--rp-body);
+  font-family: 'Noto Sans SC', system-ui, sans-serif;
+}
+
+::selection {
+  background: rgba(147, 168, 107, 0.45);
+  color: #3f4438;
+}

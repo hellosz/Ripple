@@ -1,0 +1,35 @@
+{
+  "name": "ripple",
+  "version": "1.0.0",
+  "description": "Ripple CLI - discover, install, sync and publish AI Agent skills",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "ripple": "./dist/index.js"
+  },
+  "files": ["dist"],
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hellosz/Ripple.git",
+    "directory": "apps/cli"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsup",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ripple/api-client": "workspace:*",
+    "@ripple/contract": "workspace:*",
+    "@ripple/hub": "workspace:*",
+    "@ripple/skill-core": "workspace:*",
+    "commander": "^14.0.0"
+  },
+  "devDependencies": {
+    "tsup": "^8.4.0"
+  }
+}

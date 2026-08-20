@@ -1,0 +1,37 @@
+{
+  "name": "@ripple/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsup src/index.ts --format esm --target node20 --clean",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "db:generate": "drizzle-kit generate",
+    "db:upgrade": "tsx src/db/migrate.ts",
+    "db:stamp-baseline": "tsx src/db/stamp-baseline.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.750.0",
+    "@fastify/cors": "^11.0.0",
+    "@fastify/multipart": "^9.0.0",
+    "@ripple/contract": "workspace:*",
+    "@ripple/skill-core": "workspace:*",
+    "bcryptjs": "^3.0.2",
+    "drizzle-orm": "^0.44.0",
+    "fastify": "^5.3.0",
+    "ioredis": "^5.6.0",
+    "jose": "^6.0.0",
+    "nodemailer": "^7.0.0",
+    "pg": "^8.14.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/nodemailer": "^6.4.17",
+    "@types/pg": "^8.11.0",
+    "drizzle-kit": "^0.31.0",
+    "tsup": "^8.4.0"
+  }
+}

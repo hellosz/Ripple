@@ -1,0 +1,16 @@
+{
+  "name": "@ripple/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Ripple Desktop - cross-platform local skill manager",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@ripple/api-client": "workspace:*",
+    "@ripple/contract": "workspace:*",
+    "@ripple/hub": "workspace:*",
+    "@ripple/ui": "workspace:*"
+  }
+}

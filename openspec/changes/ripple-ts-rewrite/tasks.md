@@ -2,10 +2,10 @@
 
 ## 1. 仓库迁移与 Monorepo 骨架
 
-- [ ] 1.1 在 GitHub 创建仓库 Ripple（确认归属账号/组织与可见性），`git push --mirror` 迁移全部历史与分支标签，切换 origin，保留 GitLab 为 `gitlab` 只读远端
-- [ ] 1.2 建立 pnpm workspace 骨架：`apps/{server,web,desktop,cli}`、`packages/{contract,api-client,skill-core,hub,ui}`，根级 tsconfig/eslint/prettier/vitest 基座与统一脚本（dev/build/lint/test/typecheck）
-- [ ] 1.3 配置 GitHub Actions CI：PR 触发 lint + typecheck + vitest + web build（Playwright 后续任务接入）
-- [ ] 1.4 引入 changesets 版本管理与发布流程骨架
+- [x] 1.1 在 GitHub 创建仓库 Ripple（确认归属账号/组织与可见性），`git push --mirror` 迁移全部历史与分支标签，切换 origin，保留 GitLab 为 `gitlab` 只读远端
+- [x] 1.2 建立 pnpm workspace 骨架：`apps/{server,web,desktop,cli}`、`packages/{contract,api-client,skill-core,hub,ui}`，根级 tsconfig/eslint/prettier/vitest 基座与统一脚本（dev/build/lint/test/typecheck）
+- [x] 1.3 配置 GitHub Actions CI：PR 触发 lint + typecheck + vitest + web build（Playwright 后续任务接入）
+- [x] 1.4 引入 changesets 版本管理与发布流程骨架
 
 ## 2. 共享包：契约与技能核心
 
