@@ -90,4 +90,4 @@
 - [x] 8.3 服务端部署切换：新 server 指向既有 PostgreSQL/Redis/MinIO（baseline stamp），前端切换至新 API，双栈过渡验证后下线 Python 服务
 - [x] 8.4 `/api/cli/version` 改为返回 npm 版本信息；退役 `backend/static/cli/ripple-cli.tgz`
 - [x] 8.5 删除旧 `backend/`、`frontend/`、`cli/` 目录，更新 README/AGENTS.md/docker-compose 与开发文档到新布局
-- [ ] 8.6 全量回归：spec Scenario 核对清单过一遍，e2e 绿灯，归档前审计
+- [x] 8.6 全量回归：spec Scenario 核对清单过一遍，e2e 绿灯，归档前审计
