@@ -557,3 +557,55 @@ describe('项目目录接管（回归：导入项目后技能不可见）', () =
     expect(adopted.length).toBeGreaterThanOrEqual(2);
   });
 });
+
+describe('desktop-polish-v2：项目清理 / 批量操作 / 编辑器后端', () => {
+  it('removeProject 清理作用域记录但保留项目文件', () => {
+    const project = mkdtempSync(join(tmpdir(), 'ripple-proj-clean-'));
+    hub.addProject(project);
+    hub.install(payload('p-skill'), [{ agent: 'claude-code', projectDir: project }]);
+    expect(hub.state.installs.filter((i) => i.scope === project)).toHaveLength(1);
+    hub.removeProject(project);
+    expect(hub.state.installs.filter((i) => i.scope === project)).toHaveLength(0);
+    expect(hub.state.projects.find((p) => p.path === project)).toBeUndefined();
+    expect(hub.state.oplog[0]!.action).toBe('移除项目');
+  });
+
+  it('applyAllToAgent / removeAllFromAgent：批量补齐与取消，SSOT 保留', () => {
+    mkdirSync(join(home, '.codex'));
+    hub.install(payload('b1'), [{ agent: 'claude-code' }]);
+    hub.install(payload('b2'), [{ agent: 'claude-code' }]);
+    const backupsBefore = hub.listBackups().length;
+
+    const applied = hub.applyAllToAgent('codex');
+    expect(applied.map((r) => r.skill).sort()).toEqual(['b1', 'b2']);
+    // 免逐技能备份
+    expect(hub.listBackups().length).toBe(backupsBefore);
+    // 幂等
+    expect(hub.applyAllToAgent('codex')).toHaveLength(0);
+
+    const removed = hub.removeAllFromAgent('codex');
+    expect(removed).toBe(2);
+    expect(hub.state.installs.filter((i) => i.agent === 'codex')).toHaveLength(0);
+    expect(existsSync(join(home, '.ripple', 'skills', 'b1', 'SKILL.md'))).toBe(true);
+    expect(hub.state.installs.filter((i) => i.agent === 'claude-code')).toHaveLength(2);
+  });
+
+  it('readSkillFiles：SKILL.md 置顶、跳过二进制', () => {
+    hub.install(payload('e-skill'), [{ agent: 'claude-code' }]);
+    writeFileSync(join(home, '.ripple', 'skills', 'e-skill', 'logo.png'), new Uint8Array([0x89, 0x50, 0x00, 0xff]));
+    const files = hub.readSkillFiles('e-skill');
+    expect(files[0]!.path).toBe('SKILL.md');
+    expect(files.map((f) => f.path)).not.toContain('logo.png');
+    expect(files.map((f) => f.path)).toContain('references/guide.md');
+  });
+
+  it('writeSkillFile：拒绝路径穿越、写回后 copy 分发同步', () => {
+    hub.setDistMode('copy');
+    hub.install(payload('e-skill'), [{ agent: 'claude-code' }]);
+    expect(() => hub.writeSkillFile('e-skill', '../evil.md', 'x')).toThrow(/Unsafe/);
+    hub.writeSkillFile('e-skill', 'SKILL.md', skillMd('e-skill', '9.9.9'));
+    expect(hub.installedVersion('e-skill')).toBe('9.9.9');
+    expect(readFileSync(join(home, '.claude', 'skills', 'e-skill', 'SKILL.md'), 'utf8')).toContain('9.9.9');
+    expect(hub.state.oplog[0]!.action).toBe('编辑');
+  });
+});

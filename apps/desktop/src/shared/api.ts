@@ -63,6 +63,14 @@ export interface DesktopApi {
   addPlacement(skill: string, target: InstallTarget): Promise<InstallRecord>;
   /** 按 Agent 批量备份其全部技能 */
   backupAgents(agentIds: string[]): Promise<{ count: number }>;
+  /** 批量：把当前全部技能补齐到某 Agent（内容不变，免备份） */
+  applyAllToAgent(agentId: string, skills?: string[]): Promise<{ count: number }>;
+  /** 批量：移除某 Agent 的全部全局 placement（SSOT 保留） */
+  removeAllFromAgent(agentId: string): Promise<{ count: number }>;
+  /** 本地 Skill 详情：读取全部文本文件（SKILL.md 置顶） */
+  readSkillFiles(skill: string): Promise<Array<{ path: string; content: string; size: number }>>;
+  /** 编辑保存：写回 SSOT 并重建 copy 型分发 */
+  writeSkillFile(skill: string, path: string, content: string): Promise<void>;
   sync(skill: string, targets: InstallTarget[]): Promise<InstallRecord[]>;
   setEnabled(skill: string, target: InstallTarget, enabled: boolean): Promise<InstallRecord>;
   uninstall(skill: string, target?: InstallTarget): Promise<void>;

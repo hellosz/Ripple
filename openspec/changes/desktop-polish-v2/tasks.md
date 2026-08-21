@@ -1,10 +1,10 @@
 # Tasks: desktop-polish-v2
 
 ## 1. hub 与 IPC
-- [ ] 1.1 removeProject 清理该作用域安装记录（文件保留）+ oplog；单测
-- [ ] 1.2 批量操作：applyAllToAgent / removeAllFromAgent（免逐技能备份、单条 oplog）；单测
-- [ ] 1.3 编辑器后端：readSkillFiles / writeSkillFile（SSOT 读写 + copy 分发重建 + oplog）；单测
-- [ ] 1.4 desktop shared api / main / preload 暴露以上能力
+- [x] 1.1 removeProject 清理该作用域安装记录（文件保留）+ oplog；单测
+- [x] 1.2 批量操作：applyAllToAgent / removeAllFromAgent（免逐技能备份、单条 oplog）；单测
+- [x] 1.3 编辑器后端：readSkillFiles / writeSkillFile（SSOT 读写 + copy 分发重建 + oplog）；单测
+- [x] 1.4 desktop shared api / main / preload 暴露以上能力
 
 ## 2. renderer
 - [ ] 2.1 连接卡登录态重构 + Logo 布局修正 + 未登录置灰

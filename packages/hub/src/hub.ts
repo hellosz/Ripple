@@ -439,7 +439,92 @@ export class RippleHub {
   }
 
   removeProject(path: string): void {
+    const removed = this.state.installs.filter((i) => i.scope === path);
+    for (const record of removed) this.removeDistribution(record);
+    this.state.installs = this.state.installs.filter((i) => i.scope !== path);
     this.state.projects = this.state.projects.filter((p) => p.path !== path);
+    this.logOp('移除项目', basename(path), `${removed.length} 个作用域安装记录已清理（项目文件保留）`);
+    this.save();
+  }
+
+  /** SSOT 中全部技能名（含未纳管但位于共享库中的） */
+  listStoredSkills(): string[] {
+    const names = new Set(this.state.installs.map((i) => i.skill));
+    const dir = this.storageDir();
+    if (existsSync(dir)) {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        if (entry.isDirectory() && existsSync(join(dir, entry.name, 'SKILL.md'))) names.add(entry.name);
+      }
+    }
+    return [...names].sort();
+  }
+
+  /** 批量：把技能集合（缺省为全部）补齐到某 Agent（内容不变，免逐技能备份） */
+  applyAllToAgent(agentId: string, skills?: string[]): InstallRecord[] {
+    const names = skills ?? this.listStoredSkills();
+    const records: InstallRecord[] = [];
+    for (const name of names) {
+      if (this.findInstall(name, { agent: agentId })) continue;
+      if (!existsSync(this.skillDir(name))) continue;
+      records.push(this.distributeTo(name, { agent: agentId }));
+    }
+    this.logOp('批量复制', agentId, `${records.length} 个技能已补齐`);
+    this.save();
+    return records;
+  }
+
+  /** 批量：移除某 Agent 的全部全局 placement（SSOT 保留，免逐技能备份） */
+  removeAllFromAgent(agentId: string): number {
+    const affected = this.state.installs.filter((i) => i.agent === agentId && i.scope === 'global');
+    for (const record of affected) this.removeDistribution(record);
+    this.state.installs = this.state.installs.filter(
+      (i) => !(i.agent === agentId && i.scope === 'global'),
+    );
+    this.logOp('批量取消复制', agentId, `${affected.length} 个技能的 placement 已移除（内容保留）`);
+    this.save();
+    return affected.length;
+  }
+
+  // ---- 编辑器后端 ----
+
+  /** 读取技能全部文本文件（跳过二进制与超限文件） */
+  readSkillFiles(skill: string): Array<{ path: string; content: string; size: number }> {
+    const dir = this.skillDir(skill);
+    if (!existsSync(dir)) throw new Error(`Skill '${skill}' not in central storage`);
+    const files = readDirFiles(dir);
+    const decoder = new TextDecoder('utf-8', { fatal: true });
+    const out: Array<{ path: string; content: string; size: number }> = [];
+    for (const [rel, data] of Object.entries(files)) {
+      if (data.byteLength > 512 * 1024) continue;
+      try {
+        out.push({ path: rel, content: decoder.decode(data), size: data.byteLength });
+      } catch {
+        /* 二进制跳过 */
+      }
+    }
+    return out.sort((a, b) => (a.path === 'SKILL.md' ? -1 : b.path === 'SKILL.md' ? 1 : a.path.localeCompare(b.path)));
+  }
+
+  /** 写回单个文件到 SSOT 并重建 copy/junction 型分发 */
+  writeSkillFile(skill: string, relPath: string, content: string): void {
+    if (relPath.startsWith('/') || relPath.split('/').includes('..')) {
+      throw new Error(`Unsafe path: ${relPath}`);
+    }
+    const dir = this.skillDir(skill);
+    if (!existsSync(dir)) throw new Error(`Skill '${skill}' not in central storage`);
+    const full = join(dir, relPath);
+    mkdirSync(dirname(full), { recursive: true });
+    writeFileSync(full, content, 'utf8');
+    // symlink 分发自动可见；copy/junction 分发需要重建
+    for (const install of this.state.installs.filter(
+      (i) => i.skill === skill && i.enabled && (i.mode === 'copy' || i.mode === 'junction'),
+    )) {
+      this.distributeTo(skill, {
+        agent: install.agent,
+        ...(install.scope === 'global' ? {} : { projectDir: install.scope }),
+      });
+    }
+    this.logOp('编辑', skill, relPath);
     this.save();
   }
 
