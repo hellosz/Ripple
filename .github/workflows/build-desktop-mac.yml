@@ -1,0 +1,39 @@
+name: Build Desktop (macOS on-demand)
+
+# 按需构建 macOS 安装包（不发 Release），产物以 workflow artifact 下载。
+# macos-latest = Apple Silicon (arm64)，覆盖 M1/M2/M3。
+on:
+  workflow_dispatch:
+    inputs:
+      arch:
+        description: '目标架构'
+        type: choice
+        default: arm64
+        options: [arm64, x64, universal]
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build and package (dmg + zip, unsigned)
+        run: |
+          pnpm --dir apps/desktop build
+          pnpm --dir apps/desktop exec electron-builder --mac dmg zip --${{ inputs.arch }} --publish never
+        env:
+          # 未配置签名证书：产出未签名包（安装时需在 系统设置→隐私与安全性 放行）
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ripple-desktop-mac-${{ inputs.arch }}
+          path: |
+            apps/desktop/release/*.dmg
+            apps/desktop/release/*.zip
+            apps/desktop/release/latest-mac.yml
+          if-no-files-found: error
