@@ -43,7 +43,8 @@ export function symlinkTypeFor(platform: NodeJS.Platform): 'junction' | 'dir' {
 
 export function copyDir(src: string, dest: string): void {
   ensureDir(dirname(dest));
-  cpSync(src, dest, { recursive: true });
+  // dereference：源内若有 symlink（或源本身是 symlink）复制真实内容
+  cpSync(src, dest, { recursive: true, dereference: true });
 }
 
 /**

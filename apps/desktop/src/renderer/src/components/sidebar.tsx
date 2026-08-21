@@ -64,6 +64,8 @@ export function Sidebar(): ReactElement {
 
   const rescan = (): void => {
     store.run(async () => {
+      // 先接管既有技能（unmanaged → 纳入管理），再报告剩余问题
+      const { adopted, skipped } = await ripple.adoptAll();
       const issues = await ripple.scan();
       const snap = await store.refresh();
       store.setLastScan(new Date());
@@ -71,6 +73,8 @@ export function Sidebar(): ReactElement {
       const projectCount = (snap?.projects ?? projects).length;
       store.toast(
         `扫描完成：${agentCount} 个 Agent 目录、${projectCount} 个项目目录` +
+          (adopted ? ` · 接管 ${adopted} 个既有技能` : '') +
+          (skipped ? ` · ${skipped} 个目录无 SKILL.md 跳过` : '') +
           (issues.length ? ` · ${issues.length} 个问题` : ''),
       );
     });

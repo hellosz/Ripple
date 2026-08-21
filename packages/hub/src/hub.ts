@@ -25,6 +25,7 @@ import type {
   ScanIssue,
   SourceRepo,
   StorageLocation,
+  UnmanagedSkill,
 } from './types.js';
 
 export const BACKUP_RETENTION = 20;
@@ -398,6 +399,73 @@ export class RippleHub {
       issues.push({ kind: 'version-conflict', skill, detail: versions.join(' / ') });
     }
     return issues;
+  }
+
+  /** 列出各 Agent/项目目录中未被 hub 纳管的既有技能 */
+  listUnmanaged(): UnmanagedSkill[] {
+    const managed = new Set(this.state.installs.map((i) => `${i.skill}|${i.agent}|${i.scope}`));
+    const found: UnmanagedSkill[] = [];
+    const scanDir = (dir: string, agent: string, scope: string): void => {
+      if (!existsSync(dir)) return;
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
+        if (managed.has(`${entry.name}|${agent}|${scope}`)) continue;
+        const path = join(dir, entry.name);
+        let version: string | null = null;
+        let hasSkillMd = false;
+        try {
+          const md = readFileSync(join(path, 'SKILL.md'), 'utf8');
+          hasSkillMd = true;
+          const meta = extractSkillMeta(parseFrontmatter(md));
+          version = meta.ok ? meta.meta.version : null;
+        } catch {
+          /* 无 SKILL.md：不可接管 */
+        }
+        found.push({ skill: entry.name, agent, scope, path, version, hasSkillMd });
+      }
+    };
+    for (const adapter of AGENT_ADAPTERS) {
+      scanDir(join(this.homeDir, adapter.globalRelPath), adapter.id, 'global');
+      for (const project of this.state.projects) {
+        scanDir(join(project.path, adapter.projectRelPath), adapter.id, project.path);
+      }
+    }
+    return found;
+  }
+
+  /**
+   * 接管既有技能：内容进入 SSOT（已存在则保留 SSOT 版本），
+   * 原目录保持原样（mode=copy），纳入安装记录后即可同步/备份/回退。
+   */
+  adoptAll(): { adopted: InstallRecord[]; skipped: UnmanagedSkill[] } {
+    const adopted: InstallRecord[] = [];
+    const skipped: UnmanagedSkill[] = [];
+    for (const entry of this.listUnmanaged()) {
+      if (!entry.hasSkillMd) {
+        skipped.push(entry);
+        continue;
+      }
+      const ssotDir = this.skillDir(entry.skill);
+      if (!existsSync(ssotDir)) copyDir(entry.path, ssotDir);
+      const record: InstallRecord = {
+        skill: entry.skill,
+        version: entry.version ?? this.installedVersion(entry.skill) ?? '1.0.0',
+        agent: entry.agent,
+        scope: entry.scope,
+        enabled: true,
+        mode: 'copy',
+        installed_at: this.stamp(),
+      };
+      this.state.installs.push(record);
+      adopted.push(record);
+      this.addHistory(entry.skill, {
+        action: 'install',
+        version: `v${record.version}`,
+        detail: `接管既有安装 · ${entry.agent}${entry.scope === 'global' ? '' : ` · ${basename(entry.scope)}`}`,
+      });
+    }
+    if (adopted.length > 0) this.save();
+    return { adopted, skipped };
   }
 
   /** 同一技能多处安装版本不一致 */

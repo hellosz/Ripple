@@ -85,3 +85,13 @@ export interface ScanIssue {
   skill: string;
   detail: string;
 }
+
+/** Agent/项目目录中未被 hub 纳管的既有技能 */
+export interface UnmanagedSkill {
+  skill: string;
+  agent: string;
+  scope: string;
+  path: string;
+  version: string | null;
+  hasSkillMd: boolean;
+}

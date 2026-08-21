@@ -322,3 +322,38 @@ describe('tar 解析', () => {
     expect(new TextDecoder().decode(entries[0]!.data)).toBe('hello');
   });
 });
+
+describe('接管既有技能（adopt）', () => {
+  it('扫描到的 unmanaged 技能被接管：进入 SSOT、纳入安装记录、原目录保留', () => {
+    const dir = join(home, '.claude', 'skills', 'pre-existing');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'SKILL.md'), skillMd('pre-existing', '2.3.0'));
+    mkdirSync(join(home, '.claude', 'skills', 'not-a-skill'), { recursive: true });
+
+    const unmanaged = hub.listUnmanaged();
+    expect(unmanaged.find((u) => u.skill === 'pre-existing')?.version).toBe('2.3.0');
+
+    const { adopted, skipped } = hub.adoptAll();
+    expect(adopted.map((a) => a.skill)).toContain('pre-existing');
+    expect(skipped.map((s) => s.skill)).toContain('not-a-skill');
+
+    expect(existsSync(join(home, '.ripple', 'skills', 'pre-existing', 'SKILL.md'))).toBe(true);
+    expect(existsSync(dir)).toBe(true); // 原目录不动
+    const record = hub.state.installs.find((i) => i.skill === 'pre-existing')!;
+    expect(record).toMatchObject({ agent: 'claude-code', version: '2.3.0', mode: 'copy', enabled: true });
+    // 再扫不再出现 unmanaged
+    expect(hub.listUnmanaged().find((u) => u.skill === 'pre-existing')).toBeUndefined();
+    expect(hub.scan().find((i) => i.kind === 'unmanaged' && i.skill === 'pre-existing')).toBeUndefined();
+    expect(hub.state.history['pre-existing']![0]!.detail).toContain('接管');
+  });
+
+  it('adoptAll 幂等：二次调用不重复接管', () => {
+    const dir = join(home, '.claude', 'skills', 'once-only');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'SKILL.md'), skillMd('once-only'));
+    hub.adoptAll();
+    const count = hub.state.installs.filter((i) => i.skill === 'once-only').length;
+    hub.adoptAll();
+    expect(hub.state.installs.filter((i) => i.skill === 'once-only').length).toBe(count);
+  });
+});

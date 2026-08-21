@@ -164,9 +164,18 @@ export function registerLocalCommands(program: Command, getCtx: () => CliContext
     });
   agent
     .command('scan')
-    .description('重新扫描本地目录（unmanaged / 版本冲突 / 分发丢失）')
-    .action(async () => {
+    .description('重新扫描本地目录（unmanaged / 版本冲突 / 分发丢失）；--adopt 接管既有技能')
+    .option('--adopt', '把未纳管的既有技能接管进中心存储与安装记录')
+    .action(async (opts: { adopt?: boolean }) => {
       const ctx = getCtx();
+      if (opts.adopt) {
+        const { adopted, skipped } = ctx.hub.adoptAll();
+        emit(ctx.out, { adopted, skipped }, () => {
+          note(ctx.out, `已接管 ${adopted.length} 个既有技能，跳过 ${skipped.length} 个（无 SKILL.md）`);
+          for (const r of adopted) process.stdout.write(`+ ${r.skill} v${r.version} @ ${r.agent}\n`);
+        });
+        return;
+      }
       const issues = ctx.hub.scan();
       emit(ctx.out, issues, () => {
         if (issues.length === 0) {
@@ -175,6 +184,9 @@ export function registerLocalCommands(program: Command, getCtx: () => CliContext
         }
         for (const issue of issues) {
           process.stdout.write(`[${issue.kind}] ${issue.skill}: ${issue.detail}\n`);
+        }
+        if (issues.some((i) => i.kind === 'unmanaged')) {
+          note(ctx.out, '提示：`ripple agent scan --adopt` 可接管以上既有技能');
         }
       });
     });

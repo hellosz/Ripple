@@ -54,6 +54,8 @@ export interface DesktopApi {
   // ---- hub（本地，无需登录）----
   snapshot(): Promise<HubSnapshot>;
   scan(): Promise<ScanIssue[]>;
+  /** 接管 Agent/项目目录中未纳管的既有技能 */
+  adoptAll(): Promise<{ adopted: number; skipped: number }>;
   sync(skill: string, targets: InstallTarget[]): Promise<InstallRecord[]>;
   setEnabled(skill: string, target: InstallTarget, enabled: boolean): Promise<InstallRecord>;
   uninstall(skill: string, target?: InstallTarget): Promise<void>;

@@ -137,6 +137,10 @@ type RpcHandler = (...args: never[]) => unknown;
 const handlers: Record<string, RpcHandler> = {
   snapshot: () => services.snapshot(),
   scan: () => services.hub.scan(),
+  adoptAll: () => {
+    const { adopted, skipped } = services.hub.adoptAll();
+    return { adopted: adopted.length, skipped: skipped.length };
+  },
   sync: (skill: string, targets: InstallTarget[]) => services.hub.sync(skill, targets),
   setEnabled: (skill: string, target: InstallTarget, enabled: boolean) =>
     services.hub.setEnabled(skill, target, enabled),

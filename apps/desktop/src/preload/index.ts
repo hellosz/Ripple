@@ -12,6 +12,7 @@ const rpc = (method: string, ...args: unknown[]): Promise<unknown> =>
 const rpcMethods = [
   'snapshot',
   'scan',
+  'adoptAll',
   'sync',
   'setEnabled',
   'uninstall',

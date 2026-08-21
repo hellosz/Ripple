@@ -260,7 +260,19 @@ export function useAppStore(): Store {
       if (ev.type === 'downloaded') setUpdaterVersion(ev.version ?? '');
     });
     void (async () => {
-      await Promise.all([refresh(), refreshAuth()]);
+      const [snap] = await Promise.all([refresh(), refreshAuth()]);
+      // 首次启动（无任何纳管安装）：自动接管 Agent 目录中的既有技能
+      if (snap && snap.installs.length === 0) {
+        try {
+          const { adopted } = await ripple.adoptAll();
+          if (adopted > 0) {
+            await refresh();
+            toast(`已接管 ${adopted} 个既有技能`);
+          }
+        } catch {
+          /* 接管失败不阻塞启动 */
+        }
+      }
       setLastScan(new Date());
     })();
     return () => {
