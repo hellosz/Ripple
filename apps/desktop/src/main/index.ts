@@ -148,6 +148,7 @@ const handlers: Record<string, RpcHandler> = {
   }),
   removeAllFromAgent: (agentId: string) => ({ count: services.hub.removeAllFromAgent(agentId) }),
   readSkillFiles: (skill: string) => services.hub.readSkillFiles(skill),
+  community: () => services.hub.communitySnapshot(),
   writeSkillFile: (skill: string, path: string, content: string) =>
     services.hub.writeSkillFile(skill, path, content),
   sync: (skill: string, targets: InstallTarget[]) => services.hub.sync(skill, targets),

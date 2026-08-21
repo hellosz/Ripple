@@ -18,6 +18,7 @@ const rpcMethods = [
   'applyAllToAgent',
   'removeAllFromAgent',
   'readSkillFiles',
+  'community',
   'writeSkillFile',
   'sync',
   'setEnabled',

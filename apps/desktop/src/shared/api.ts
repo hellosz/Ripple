@@ -1,5 +1,6 @@
 import type {
   BackupRecord,
+  CommunitySkill,
   DetectedAgent,
   DistMode,
   HistoryEntry,
@@ -71,6 +72,8 @@ export interface DesktopApi {
   readSkillFiles(skill: string): Promise<Array<{ path: string; content: string; size: number }>>;
   /** 编辑保存：写回 SSOT 并重建 copy 型分发 */
   writeSkillFile(skill: string, path: string, content: string): Promise<void>;
+  /** 社区开源快照（逐来源技能 + 指纹比对 + 更新时间，本地即可用无需登录） */
+  community(): Promise<CommunitySkill[]>;
   sync(skill: string, targets: InstallTarget[]): Promise<InstallRecord[]>;
   setEnabled(skill: string, target: InstallTarget, enabled: boolean): Promise<InstallRecord>;
   uninstall(skill: string, target?: InstallTarget): Promise<void>;

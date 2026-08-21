@@ -8,6 +8,7 @@ import {
   type SkillMeta,
 } from '@ripple/skill-core';
 import { parseTar } from './tar.js';
+import { treeHashFromFiles } from './fingerprint.js';
 import type { SourceRepo } from './types.js';
 
 export interface SkillPayload {
@@ -38,6 +39,10 @@ export interface RepoSkill {
   version: string;
   /** tarball 内技能根目录 */
   root: string;
+  /** 内容树哈希指纹（相对技能根） */
+  fingerprint: string;
+  /** 仓库内相对路径（去掉 tarball 首段），用于 commits API path 过滤 */
+  repoPath: string;
 }
 
 export function parseRepoSpec(
@@ -111,11 +116,21 @@ export function scanTarballSkills(tarGz: Uint8Array, subdir = ''): { skills: Rep
     }
     const metaResult = extractSkillMeta(parseFrontmatter(decoder.decode(entry.data)));
     if (!metaResult.ok) continue;
+    const prefix = `${root}/`;
+    const skillFiles: Record<string, Uint8Array> = {};
+    for (const e of entries) {
+      if (e.path.startsWith(prefix)) {
+        const rel = e.path.slice(prefix.length);
+        if (rel) skillFiles[rel] = e.data;
+      }
+    }
     skills.push({
       name: metaResult.meta.name,
       description: metaResult.meta.description,
       version: metaResult.meta.version,
       root,
+      fingerprint: treeHashFromFiles(skillFiles),
+      repoPath: root.split('/').slice(1).join('/'),
     });
   }
   return { skills, entries };

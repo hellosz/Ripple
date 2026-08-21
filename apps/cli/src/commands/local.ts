@@ -31,7 +31,7 @@ export function registerLocalCommands(program: Command, getCtx: () => CliContext
         } else {
           requireToken(ctx);
           const payload = await payloadFromRegistry(ctx, name);
-          records = ctx.hub.install(payload, targets);
+          records = ctx.hub.install(payload, targets, { origin: 'registry' });
         }
         emit(ctx.out, records, () => {
           for (const r of records) {
@@ -77,7 +77,9 @@ export function registerLocalCommands(program: Command, getCtx: () => CliContext
         const targets = ctx.hub.state.installs
           .filter((i) => i.skill === skill)
           .map((i) => ({ agent: i.agent, ...(i.scope === 'global' ? {} : { projectDir: i.scope }) }));
-        ctx.hub.install(payload, targets.length ? targets : [{ agent: ctx.hub.state.default_agent }]);
+        ctx.hub.install(payload, targets.length ? targets : [{ agent: ctx.hub.state.default_agent }], {
+          origin: 'registry',
+        });
         results.push({ skill, from: current, to: detail.version, updated: true });
       }
       emit(ctx.out, results, () => {

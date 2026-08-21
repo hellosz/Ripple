@@ -13,9 +13,11 @@ import {
   type RepoSkill,
   type SkillPayload,
 } from './sources.js';
+import { treeHashFromDir } from './fingerprint.js';
 import { defaultState, loadState, saveState } from './state.js';
 import type {
   BackupRecord,
+  CommunitySkill,
   DetectedAgent,
   DistMode,
   EffectiveMode,
@@ -132,7 +134,11 @@ export class RippleHub {
     );
   }
 
-  distributeTo(skill: string, target: InstallTarget): InstallRecord {
+  private siblingOrigin(skill: string): string | undefined {
+    return this.state.installs.find((i) => i.skill === skill && i.origin)?.origin;
+  }
+
+  distributeTo(skill: string, target: InstallTarget, origin?: string): InstallRecord {
     const src = this.skillDir(skill);
     if (!existsSync(src)) throw new Error(`Skill '${skill}' not in central storage`);
     const version = this.installedVersion(skill) ?? '0.0.0';
@@ -169,6 +175,7 @@ export class RippleHub {
         enabled: true,
         mode,
         installed_at: this.stamp(),
+        origin: origin ?? this.siblingOrigin(skill) ?? 'local',
       };
       this.state.installs.push(record);
     }
@@ -177,12 +184,16 @@ export class RippleHub {
 
   // ---- 安装 / 更新 / 同步 ----
 
-  install(payload: SkillPayload, targets: InstallTarget[]): InstallRecord[] {
+  install(
+    payload: SkillPayload,
+    targets: InstallTarget[],
+    opts: { origin?: string } = {},
+  ): InstallRecord[] {
     const name = payload.meta.name;
     if (existsSync(this.skillDir(name))) this.createBackup(name, '更新前自动备份');
     this.writeSkillContent(payload);
     const resolved = targets.length > 0 ? targets : [{ agent: this.state.default_agent }];
-    const records = resolved.map((t) => this.distributeTo(name, t));
+    const records = resolved.map((t) => this.distributeTo(name, t, opts.origin));
     const detail = records
       .map((r) => `${r.agent}${r.scope === 'global' ? '' : ` · ${basename(r.scope)}`}`)
       .join('、');
@@ -630,6 +641,7 @@ export class RippleHub {
         enabled: true,
         mode: 'copy',
         installed_at: this.stamp(),
+        origin: 'adopt',
       };
       this.state.installs.push(record);
       adopted.push(record);
@@ -715,11 +727,70 @@ export class RippleHub {
     if (!source) throw new Error(`Source '${sourceId}' not found`);
     const tarball = await fetchRepoTarball(source, this.fetchImpl);
     const payload = payloadFromTarball(tarball, skillName, source.subdir);
-    return this.install(payload, targets);
+    return this.install(payload, targets, { origin: `repo:${sourceId}` });
   }
 
   installFromZip(data: Uint8Array, targets: InstallTarget[]): InstallRecord[] {
-    return this.install(payloadFromZip(data), targets);
+    return this.install(payloadFromZip(data), targets, { origin: 'zip' });
+  }
+
+  // ---- 社区开源 ----
+
+  /** 单技能子路径的最近提交时间（GitHub/GitLab commits API，best-effort） */
+  private async fetchCommitTime(source: SourceRepo, repoPath: string): Promise<string | null> {
+    try {
+      if (source.provider === 'gitlab' && source.host) {
+        const project = encodeURIComponent(`${source.owner}/${source.repo}`);
+        const url = `https://${source.host}/api/v4/projects/${project}/repository/commits?ref_name=${encodeURIComponent(source.branch)}&path=${encodeURIComponent(repoPath)}&per_page=1`;
+        const res = await this.fetchImpl(url);
+        if (!res.ok) return null;
+        const data = (await res.json()) as Array<{ committed_date?: string }>;
+        return data[0]?.committed_date ?? null;
+      }
+      const url = `https://api.github.com/repos/${source.owner}/${source.repo}/commits?sha=${encodeURIComponent(source.branch)}&path=${encodeURIComponent(repoPath)}&per_page=1`;
+      const res = await this.fetchImpl(url);
+      if (!res.ok) return null;
+      const data = (await res.json()) as Array<{ commit?: { committer?: { date?: string } } }>;
+      return data[0]?.commit?.committer?.date ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * 社区开源快照：逐来源列出技能并与本地指纹比对。
+   * 提交时间仅对「本地存在」的技能获取（控制 API 配额）；来源不可达时整组跳过。
+   */
+  async communitySnapshot(): Promise<CommunitySkill[]> {
+    const out: CommunitySkill[] = [];
+    for (const source of this.state.sources) {
+      let skills: RepoSkill[];
+      try {
+        const tarball = await fetchRepoTarball(source, this.fetchImpl);
+        skills = scanTarballSkills(tarball, source.subdir).skills;
+      } catch {
+        continue;
+      }
+      for (const skill of skills) {
+        const dir = this.skillDir(skill.name);
+        const localFingerprint = existsSync(dir) ? treeHashFromDir(dir) : null;
+        const installed =
+          localFingerprint !== null || this.state.installs.some((i) => i.skill === skill.name);
+        const changed = localFingerprint !== null && localFingerprint !== skill.fingerprint;
+        out.push({
+          sourceId: source.id,
+          name: skill.name,
+          description: skill.description,
+          version: skill.version,
+          fingerprint: skill.fingerprint,
+          installed,
+          localFingerprint,
+          changed,
+          remoteUpdatedAt: installed ? await this.fetchCommitTime(source, skill.repoPath) : null,
+        });
+      }
+    }
+    return out;
   }
 }
 

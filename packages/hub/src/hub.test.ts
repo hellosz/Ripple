@@ -609,3 +609,81 @@ describe('desktop-polish-v2：项目清理 / 批量操作 / 编辑器后端', ()
     expect(hub.state.oplog[0]!.action).toBe('编辑');
   });
 });
+
+describe('community-sources：指纹 / origin / 社区更新', () => {
+  it('树哈希：目录与 tarball 内容一致时指纹相同，文件变更后不同', async () => {
+    const { treeHashFromFiles, treeHashFromDir } = await import('./fingerprint.js');
+    const files = { 'SKILL.md': strToU8(skillMd('fp')), 'references/a.md': strToU8('# a') };
+    const h1 = treeHashFromFiles(files);
+    hub.install(
+      { meta: { name: 'fp', description: 'x', version: '1.0.0', display_name: null, category: null, tags: null }, files },
+      [{ agent: 'claude-code' }],
+    );
+    expect(treeHashFromDir(join(home, '.ripple', 'skills', 'fp'))).toBe(h1);
+    expect(treeHashFromFiles({ ...files, 'references/a.md': strToU8('# changed') })).not.toBe(h1);
+  });
+
+  it('origin 全路径落点：registry 显式传入 / repo / zip / adopt / placement 继承', async () => {
+    // 显式（registry 场景由调用方传入）
+    hub.install(payload('o-reg'), [{ agent: 'claude-code' }], { origin: 'registry' });
+    expect(hub.state.installs.find((i) => i.skill === 'o-reg')!.origin).toBe('registry');
+    // zip
+    const zip = zipSync({ 'SKILL.md': strToU8(skillMd('o-zip')) });
+    hub.installFromZip(zip, [{ agent: 'claude-code' }]);
+    expect(hub.state.installs.find((i) => i.skill === 'o-zip')!.origin).toBe('zip');
+    // repo
+    const tarGz = gzipSync(buildTar({ 'r-main/o-repo/SKILL.md': strToU8(skillMd('o-repo')) }));
+    const fetchImpl = (async () => new Response(tarGz.slice().buffer)) as unknown as typeof fetch;
+    const h = new RippleHub({ homeDir: home, fetchImpl });
+    h.state.storage_location = 'builtin';
+    h.addSource('acme/o');
+    await h.installFromRepo('acme/o', 'o-repo', [{ agent: 'claude-code' }]);
+    expect(h.state.installs.find((i) => i.skill === 'o-repo')!.origin).toBe('repo:acme/o');
+    // placement 继承
+    mkdirSync(join(home, '.codex'), { recursive: true });
+    hub.addPlacement('o-reg', { agent: 'codex' });
+    expect(
+      hub.state.installs.find((i) => i.skill === 'o-reg' && i.agent === 'codex')!.origin,
+    ).toBe('registry');
+  });
+
+  it('communitySnapshot：指纹比对判定更新，提交时间仅对本地存在的技能获取', async () => {
+    const remoteMd = skillMd('cs-skill', '2.0.0');
+    const tarGz = gzipSync(buildTar({ 'r-main/cs-skill/SKILL.md': strToU8(remoteMd) }));
+    const calls: string[] = [];
+    const fetchImpl = (async (url: string) => {
+      calls.push(String(url));
+      if (String(url).includes('api.github.com')) {
+        return new Response(JSON.stringify([{ commit: { committer: { date: '2026-08-20T10:00:00Z' } } }]), {
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response(tarGz.slice().buffer);
+    }) as unknown as typeof fetch;
+    const h = new RippleHub({ homeDir: home, fetchImpl });
+    h.state.storage_location = 'builtin';
+    h.state.sources = [
+      { id: 'acme/cs', owner: 'acme', repo: 'cs', branch: 'main', subdir: '', note: '', builtin: false, provider: 'github' },
+    ];
+
+    // 本地不存在：installed=false，不查提交时间
+    let snap = await h.communitySnapshot();
+    expect(snap).toHaveLength(1);
+    expect(snap[0]).toMatchObject({ name: 'cs-skill', installed: false, changed: false, remoteUpdatedAt: null });
+    expect(calls.filter((c) => c.includes('api.github.com'))).toHaveLength(0);
+
+    // 安装旧版本 → changed=true，且拿到提交时间
+    h.install(payload('cs-skill', '1.0.0'), [{ agent: 'claude-code' }]);
+    snap = await h.communitySnapshot();
+    expect(snap[0]).toMatchObject({ installed: true, changed: true, remoteUpdatedAt: '2026-08-20T10:00:00Z' });
+    expect(snap[0]!.localFingerprint).not.toBe(snap[0]!.fingerprint);
+
+    // 安装远端同内容 → changed=false
+    h.install(
+      { meta: { name: 'cs-skill', description: 'x', version: '2.0.0', display_name: null, category: null, tags: null }, files: { 'SKILL.md': strToU8(remoteMd) } },
+      [{ agent: 'claude-code' }],
+    );
+    snap = await h.communitySnapshot();
+    expect(snap[0]!.changed).toBe(false);
+  });
+});

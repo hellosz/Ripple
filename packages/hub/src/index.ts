@@ -5,4 +5,5 @@ export * from './state.js';
 export * from './fs-utils.js';
 export * from './tar.js';
 export * from './sources.js';
+export * from './fingerprint.js';
 export * from './hub.js';

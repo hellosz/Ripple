@@ -162,7 +162,7 @@ export class DesktopServices {
 
   async installFromRegistry(skill: string, targets: InstallTarget[]) {
     const data = await this.client().skills.download(skill);
-    return this.hub.install(payloadFromZip(new Uint8Array(data)), targets);
+    return this.hub.install(payloadFromZip(new Uint8Array(data)), targets, { origin: 'registry' });
   }
 
   async checkUpdates(): Promise<UpdateEntry[]> {

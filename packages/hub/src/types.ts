@@ -12,6 +12,24 @@ export interface InstallRecord {
   enabled: boolean;
   mode: EffectiveMode;
   installed_at: string;
+  /** 来源标识：registry / repo:<sourceId> / zip / adopt / local */
+  origin?: string;
+}
+
+/** 社区来源技能条目（含本地状态） */
+export interface CommunitySkill {
+  sourceId: string;
+  name: string;
+  description: string;
+  version: string;
+  fingerprint: string;
+  installed: boolean;
+  /** 本地 SSOT 指纹（无内容为 null） */
+  localFingerprint: string | null;
+  /** 远端指纹 ≠ 本地指纹（本地存在时） */
+  changed: boolean;
+  /** 该技能子路径最近提交时间（best-effort，可能为 null） */
+  remoteUpdatedAt: string | null;
 }
 
 export interface ProjectRecord {
