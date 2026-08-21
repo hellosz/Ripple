@@ -168,6 +168,8 @@ const handlers: Record<string, RpcHandler> = {
     const dir = result.filePaths[0];
     if (result.canceled || !dir) return null;
     services.hub.addProject(dir);
+    // 立即接管该项目目录中的既有技能（否则要等下一次手动扫描才可见）
+    services.hub.adoptAll();
     return services.hub.state.projects.find((p) => p.path === dir) ?? null;
   },
 

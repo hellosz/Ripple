@@ -536,3 +536,24 @@ describe('操作日志与批量备份', () => {
     expect(hub.state.oplog[0]!.action).toBe('批量备份');
   });
 });
+
+describe('项目目录接管（回归：导入项目后技能不可见）', () => {
+  it('addProject 后 adoptAll 接管项目内 .claude/.codex 既有技能（scope=项目路径）', () => {
+    const project = mkdtempSync(join(tmpdir(), 'ripple-proj-adopt-'));
+    for (const rel of ['.claude/skills/proj-a', '.codex/skills/proj-b']) {
+      mkdirSync(join(project, rel), { recursive: true });
+      const name = rel.split('/').pop()!;
+      writeFileSync(join(project, rel, 'SKILL.md'), skillMd(name));
+    }
+    hub.addProject(project);
+    const unmanaged = hub.listUnmanaged().filter((u) => u.scope === project);
+    expect(unmanaged.map((u) => u.skill).sort()).toEqual(['proj-a', 'proj-b']);
+    const { adopted } = hub.adoptAll();
+    const projRecords = hub.state.installs.filter((i) => i.scope === project);
+    expect(projRecords.map((r) => `${r.agent}:${r.skill}`).sort()).toEqual([
+      'claude-code:proj-a',
+      'codex:proj-b',
+    ]);
+    expect(adopted.length).toBeGreaterThanOrEqual(2);
+  });
+});

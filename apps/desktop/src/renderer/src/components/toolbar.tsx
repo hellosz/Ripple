@@ -29,7 +29,12 @@ export function Toolbar(): ReactElement {
     sub = `${updates.length} 个技能可更新`;
   } else if (view.kind === 'settings') {
     title = '设置';
-    sub = store.settingsTab === 'backups' ? '自动备份保留最近 20 份' : '服务 · GitHub 仓库 · ZIP · Deep Link';
+    sub =
+      store.settingsTab === 'backups'
+        ? '自动备份保留最近 20 份'
+        : store.settingsTab === 'oplog'
+          ? '本地 hub 操作日志（最近 500 条）'
+          : '服务 · GitHub / GitLab 仓库 · ZIP · Deep Link';
   }
 
   const showUpdateAll = loggedIn && updates.length > 0 && view.kind !== 'market';

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { CSSProperties, ReactElement } from 'react';
+import sideBg from '../assets/side-bg.avif';
 import { ripple } from '../ripple-api.js';
 import { errText, useStore } from '../store.js';
 import { DANGER, GREEN_DEEP, HERO_BG, INK, MONO, dim, gradBtn, hostOf } from '../ui.js';
@@ -97,7 +98,16 @@ export function LoginModal(): ReactElement | null {
         }}
       >
         <div style={{ position: 'relative', height: 86 }}>
-          <div style={{ position: 'absolute', inset: 0, background: HERO_BG }} />
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              // 与侧边栏连接卡同款头图；加载异常时露出同色系渐变兜底
+              backgroundImage: `url(${sideBg}), ${HERO_BG}`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+            }}
+          />
           <div
             style={{
               position: 'absolute',

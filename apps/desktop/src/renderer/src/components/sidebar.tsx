@@ -1,4 +1,8 @@
+import { useState } from 'react';
 import type { CSSProperties, ReactElement } from 'react';
+import type { AgentSummary } from '../../../shared/api.js';
+import sideBg from '../assets/side-bg.avif';
+import { AgentIcon } from '../agent-icons.js';
 import { ripple } from '../ripple-api.js';
 import { useStore } from '../store.js';
 import { HERO_BG, MONO, PRIMARY, dim, hostOf } from '../ui.js';
@@ -38,11 +42,48 @@ export function Sidebar(): ReactElement {
   const agents = snapshot?.agents ?? [];
   const projects = snapshot?.projects ?? [];
   const installs = snapshot?.installs ?? [];
+  const [unusedOpen, setUnusedOpen] = useState(false);
 
+  const emailPrefix = auth?.user?.email?.split('@')[0] ?? '';
   const connLabel = loggedIn
-    ? `已登录 · ${auth?.user?.nickname ?? auth?.user?.email ?? ''}`
+    ? `已登录 · ${auth?.user?.nickname ?? emailPrefix}`
     : '本地模式 · 未登录';
   const connSub = loggedIn ? hostOf(auth?.server ?? '') : '点击配置远程服务';
+
+  // 有技能的 Agent 置顶：有安装记录，或（支持共享目录标准 + 共享存储 + 共享库非空）
+  const sharedLibCount = Object.keys(snapshot?.skills ?? {}).length;
+  const storageShared = snapshot?.settings.storage_location === 'shared';
+  const hasSkills = (a: AgentSummary): boolean =>
+    a.installCount > 0 || (a.sharedDirSupport && storageShared && sharedLibCount > 0);
+  const usedAgents = agents.filter(hasSkills);
+  const unusedAgents = agents.filter((a) => !hasSkills(a));
+
+  const renderAgentRow = (a: AgentSummary): ReactElement => {
+    const active = view.kind === 'agent' && view.agentId === a.id;
+    return (
+      <div
+        key={a.id}
+        className="rp-hover-row"
+        onClick={() => store.setView({ kind: 'agent', agentId: a.id })}
+        title={a.detected ? a.name : `${a.name} · 未检测到本地目录`}
+        style={{
+          ...navBase,
+          fontSize: 12.5,
+          color: dim(a.detected ? 0.75 : 0.4),
+          ...(active ? activeNav : {}),
+        }}
+      >
+        <span style={{ flex: 'none', display: 'inline-flex', opacity: a.detected ? 1 : 0.4 }}>
+          <AgentIcon agentId={a.id} name={a.name} size={16} />
+        </span>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</span>
+        <span style={{ flex: 1 }} />
+        <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 11, color: dim(0.4) }}>
+          {a.installCount}
+        </span>
+      </div>
+    );
+  };
 
   const mainNav: {
     key: 'local' | 'market' | 'updates';
@@ -115,7 +156,16 @@ export function Sidebar(): ReactElement {
     >
       {/* 品牌区 + 连接状态卡 */}
       <div style={{ position: 'relative', overflow: 'hidden', margin: '0 -10px 12px', padding: '44px 12px 12px' }}>
-        <div style={{ position: 'absolute', inset: 0, background: HERO_BG }} />
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            // 头图打包内置；加载异常时露出同色系渐变兜底
+            backgroundImage: `url(${sideBg}), ${HERO_BG}`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }}
+        />
         <div
           style={{
             position: 'absolute',
@@ -155,7 +205,18 @@ export function Sidebar(): ReactElement {
             }}
           />
           <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#faf9f2', whiteSpace: 'nowrap' }}>{connLabel}</div>
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: '#faf9f2',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {connLabel}
+            </div>
             <div
               style={{
                 fontSize: 10.5,
@@ -219,37 +280,20 @@ export function Sidebar(): ReactElement {
       >
         AGENT · 全局
       </div>
-      {agents.map((a) => {
-        const active = view.kind === 'agent' && view.agentId === a.id;
-        return (
-          <div
-            key={a.id}
-            className="rp-hover-row"
-            onClick={() => store.setView({ kind: 'agent', agentId: a.id })}
-            style={{
-              ...navBase,
-              fontSize: 12.5,
-              color: dim(a.detected ? 0.75 : 0.4),
-              ...(active ? activeNav : {}),
-            }}
-          >
-            <span
-              style={{
-                width: 7,
-                height: 7,
-                borderRadius: '50%',
-                flex: 'none',
-                background: a.detected ? '#7fa588' : 'rgba(75,80,64,.25)',
-              }}
-            />
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</span>
-            <span style={{ flex: 1 }} />
-            <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 11, color: dim(0.4) }}>
-              {a.installCount}
-            </span>
-          </div>
-        );
-      })}
+      {usedAgents.map(renderAgentRow)}
+      {unusedAgents.length > 0 && (
+        <div
+          className="rp-hover-row"
+          onClick={() => setUnusedOpen((o) => !o)}
+          style={{ ...navBase, fontSize: 11.5, color: dim(0.45) }}
+        >
+          <span style={{ width: 16, textAlign: 'center', flex: 'none', fontSize: 10 }}>
+            {unusedOpen ? '▾' : '▸'}
+          </span>
+          <span style={{ whiteSpace: 'nowrap' }}>未使用 ({unusedAgents.length})</span>
+        </div>
+      )}
+      {unusedOpen && unusedAgents.map(renderAgentRow)}
 
       {/* 项目 · 本地目录 */}
       <div style={{ display: 'flex', alignItems: 'center', padding: '16px 10px 6px' }}>
@@ -347,7 +391,7 @@ export function Sidebar(): ReactElement {
         }}
       >
         ⚙ 设置<span style={{ flex: 1 }} />
-        <span style={{ fontSize: 10.5, color: 'rgba(75,80,64,.35)' }}>来源 · 备份</span>
+        <span style={{ fontSize: 10.5, color: 'rgba(75,80,64,.35)' }}>来源 · 备份 · 记录</span>
       </div>
     </div>
   );

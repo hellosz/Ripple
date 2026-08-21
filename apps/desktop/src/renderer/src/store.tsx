@@ -13,7 +13,7 @@ export interface View {
 
 export type ScopeFilter = 'all' | 'global' | 'project';
 export type MarketTab = 'browse' | 'rank' | 'collections';
-export type SettingsTab = 'sources' | 'backups';
+export type SettingsTab = 'sources' | 'backups' | 'oplog';
 export type SyncMode = 'sync' | 'registry';
 
 export interface SyncModalState {
@@ -57,8 +57,6 @@ export interface Store {
   setMarketTab: (t: MarketTab) => void;
   settingsTab: SettingsTab;
   setSettingsTab: (t: SettingsTab) => void;
-  expanded: Record<string, boolean>;
-  toggleExpanded: (skill: string) => void;
 
   sync: SyncModalState | null;
   openSync: (s: SyncModalState) => void;
@@ -109,7 +107,6 @@ export function useAppStore(): Store {
   const [query, setQuery] = useState('');
   const [marketTab, setMarketTab] = useState<MarketTab>('browse');
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('sources');
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   const [sync, setSync] = useState<SyncModalState | null>(null);
   const [historyFor, setHistoryFor] = useState<string | null>(null);
@@ -191,10 +188,6 @@ export function useAppStore(): Store {
   const setView = useCallback((v: View): void => {
     setViewRaw(v);
     setQuery('');
-  }, []);
-
-  const toggleExpanded = useCallback((skill: string): void => {
-    setExpanded((e) => ({ ...e, [skill]: !e[skill] }));
   }, []);
 
   const openSync = useCallback((s: SyncModalState): void => setSync(s), []);
@@ -311,8 +304,6 @@ export function useAppStore(): Store {
     setMarketTab,
     settingsTab,
     setSettingsTab,
-    expanded,
-    toggleExpanded,
     sync,
     openSync,
     closeSync,

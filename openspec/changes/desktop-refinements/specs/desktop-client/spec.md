@@ -21,7 +21,7 @@ AGENT·全局列表 MUST 按固定顺序展示：Claude Code、Codex、OpenCode�
 
 #### Scenario: 补齐到缺失 Agent
 - **WHEN** 技能仅装于 Claude Code，用户点击矩阵中的 Hermes 徽标
-- **THEN** 弹出确认后补齐，徽标变为已装态并标注 通用/专属
+- **THEN** 立即补齐并 toast 反馈，徽标变为已装态并标注 通用/专属
 
 ### Requirement: 来源浏览与 GitLab
 设置-技能来源中每个仓库 MUST 提供「浏览技能」入口：列出仓库内技能（名称/版本/描述）并可选择目标安装；添加来源支持粘贴 GitHub `owner/repo` 或私服 GitLab public 仓库 URL。

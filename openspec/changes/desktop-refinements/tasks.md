@@ -11,7 +11,7 @@
 ## 2. 桌面端
 
 - [x] 2.1 shared api/preload/main：addPlacement、backupAgents、oplog/agents 元数据入 snapshot、头图资源
-- [ ] 2.2 连接卡（头图背景/昵称/防溢出）+ Agent 列表（logo、固定序、空 Agent 折叠）
-- [ ] 2.3 技能行存在矩阵（通用/专属/未装-补齐），按钮「同步」+「历史」顺序，去除折叠
-- [ ] 2.4 设置：来源浏览技能弹窗 + GitLab URL 支持、操作记录 tab、按 Agent 多选/全选备份
-- [ ] 2.5 typecheck/lint/build 全绿，重新打包 Linux
+- [x] 2.2 连接卡（头图背景/昵称/防溢出）+ Agent 列表（logo、固定序、空 Agent 折叠）
+- [x] 2.3 技能行存在矩阵（通用/专属/未装-补齐），按钮「同步」+「历史」顺序，去除折叠
+- [x] 2.4 设置：来源浏览技能弹窗 + GitLab URL 支持、操作记录 tab、按 Agent 多选/全选备份
+- [x] 2.5 typecheck/lint/build 全绿，重新打包 Linux

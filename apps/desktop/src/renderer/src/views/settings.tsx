@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { CSSProperties, ReactElement } from 'react';
+import type { RepoSkill } from '@ripple/hub';
+import { AgentIcon } from '../agent-icons.js';
 import { ripple } from '../ripple-api.js';
-import { useStore } from '../store.js';
+import { errText, useStore } from '../store.js';
 import {
+  DANGER,
   GREEN_DEEP,
   INK,
   MONO,
@@ -36,7 +39,8 @@ function SourcesTab(): ReactElement {
   const settings = snapshot?.settings;
   const sources = snapshot?.sources ?? [];
   const [formOpen, setFormOpen] = useState(false);
-  const [draft, setDraft] = useState({ owner: '', name: '', branch: '', subdir: '' });
+  const [draft, setDraft] = useState('');
+  const [browse, setBrowse] = useState<{ id: string; label: string } | null>(null);
 
   const setLocation = (loc: 'builtin' | 'shared'): void => {
     if (settings?.storage_location === loc) return;
@@ -63,18 +67,15 @@ function SourcesTab(): ReactElement {
   };
 
   const addRepo = (): void => {
-    if (!draft.owner.trim() || !draft.name.trim()) {
-      store.toast('Owner 和仓库名必填');
+    const spec = draft.trim();
+    if (!spec) {
+      store.toast('请填写仓库地址');
       return;
     }
     store.run(async () => {
-      const spec =
-        `${draft.owner.trim()}/${draft.name.trim()}` +
-        (draft.branch.trim() ? `#${draft.branch.trim()}` : '') +
-        (draft.subdir.trim() ? `:${draft.subdir.trim()}` : '');
       const repo = await ripple.addSource(spec);
       setFormOpen(false);
-      setDraft({ owner: '', name: '', branch: '', subdir: '' });
+      setDraft('');
       await store.refresh();
       store.toast(`已添加仓库 ${repo.owner}/${repo.repo}`);
     });
@@ -143,10 +144,10 @@ function SourcesTab(): ReactElement {
         <div style={{ marginTop: 12, fontFamily: MONO, fontSize: 11.5, color: dim(0.45) }}>{distLine}</div>
       </div>
 
-      {/* GitHub 仓库 */}
+      {/* 技能仓库（GitHub / GitLab） */}
       <div style={panelStyle}>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
-          <span style={{ fontWeight: 900, fontSize: 14, color: INK }}>GitHub 仓库</span>
+          <span style={{ fontWeight: 900, fontSize: 14, color: INK }}>技能仓库</span>
           <span style={{ flex: 1 }} />
           <span
             className="rp-btn-outline"
@@ -157,37 +158,20 @@ function SourcesTab(): ReactElement {
           </span>
         </div>
         <p style={{ margin: '0 0 10px', fontSize: 12, color: dim(0.55), lineHeight: 1.7 }}>
-          本地模式也可用：直接从 GitHub 仓库扫描并安装技能，支持指定分支与子目录。
+          本地模式也可用：从仓库扫描并安装技能。支持 GitHub <code>owner/repo[#branch][:subdir]</code>
+          ，或私服 GitLab public 仓库完整 URL <code>https://host/owner/repo[#branch][:subdir]</code>。
         </p>
         {formOpen && (
-          <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', animation: 'fade-in .2s ease-out' }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12, animation: 'fade-in .2s ease-out' }}>
             <input
               className="rp-input"
-              value={draft.owner}
-              onChange={(e) => setDraft({ ...draft, owner: e.target.value })}
-              placeholder="Owner *"
-              style={{ ...inputStyle, flex: 1, minWidth: 110 }}
-            />
-            <input
-              className="rp-input"
-              value={draft.name}
-              onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-              placeholder="仓库名 *"
-              style={{ ...inputStyle, flex: 1, minWidth: 110 }}
-            />
-            <input
-              className="rp-input"
-              value={draft.branch}
-              onChange={(e) => setDraft({ ...draft, branch: e.target.value })}
-              placeholder="分支 (main)"
-              style={{ ...inputStyle, width: 100 }}
-            />
-            <input
-              className="rp-input"
-              value={draft.subdir}
-              onChange={(e) => setDraft({ ...draft, subdir: e.target.value })}
-              placeholder="子目录（可选）"
-              style={{ ...inputStyle, width: 120 }}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') addRepo();
+              }}
+              placeholder="anthropics/skills#main 或 https://gitlab.example.com/team/skills:skills"
+              style={{ ...inputStyle, flex: 1, minWidth: 0 }}
             />
             <span className="rp-btn-grad" onClick={addRepo} style={{ ...gradBtn, fontSize: 12.5, padding: '8px 18px' }}>
               添加
@@ -195,7 +179,8 @@ function SourcesTab(): ReactElement {
           </div>
         )}
         {sources.map((rp) => {
-          const label = `${rp.owner}/${rp.repo}${rp.subdir ? ` › ${rp.subdir}` : ''}`;
+          const label =
+            `${rp.host ? `${rp.host}/` : ''}${rp.owner}/${rp.repo}` + (rp.subdir ? ` › ${rp.subdir}` : '');
           return (
             <div
               key={rp.id}
@@ -224,6 +209,13 @@ function SourcesTab(): ReactElement {
               </span>
               <span style={{ flex: 1, color: dim(0.45), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {rp.note}
+              </span>
+              <span
+                className="rp-btn-outline"
+                onClick={() => setBrowse({ id: rp.id, label })}
+                style={{ ...outlineBtn, fontSize: 11.5, padding: '5px 12px', flex: 'none' }}
+              >
+                浏览技能
               </span>
               {!rp.builtin && (
                 <span
@@ -285,6 +277,270 @@ function SourcesTab(): ReactElement {
           </div>
         </div>
       </div>
+
+      {browse && <RepoBrowseModal sourceId={browse.id} label={browse.label} onClose={() => setBrowse(null)} />}
+    </div>
+  );
+}
+
+/** 「浏览技能」弹窗：列出来源仓库内技能并可安装到默认 Agent */
+function RepoBrowseModal({
+  sourceId,
+  label,
+  onClose,
+}: {
+  sourceId: string;
+  label: string;
+  onClose: () => void;
+}): ReactElement {
+  const store = useStore();
+  const defaultAgent = store.snapshot?.settings.default_agent ?? 'claude-code';
+  const agentName =
+    store.snapshot?.agents.find((a) => a.id === defaultAgent)?.name ?? defaultAgent;
+  const [skills, setSkills] = useState<RepoSkill[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [installing, setInstalling] = useState<Record<string, boolean>>({});
+  const [installed, setInstalled] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    let alive = true;
+    setSkills(null);
+    setError(null);
+    ripple
+      .listRepoSkills(sourceId)
+      .then((list) => {
+        if (alive) setSkills(list);
+      })
+      .catch((err: unknown) => {
+        if (alive) setError(errText(err));
+      });
+    return () => {
+      alive = false;
+    };
+  }, [sourceId]);
+
+  const install = (name: string): void => {
+    if (installing[name]) return;
+    setInstalling((m) => ({ ...m, [name]: true }));
+    void (async () => {
+      try {
+        await ripple.installFromRepo(sourceId, name, [{ agent: defaultAgent }]);
+        await store.refresh();
+        setInstalled((m) => ({ ...m, [name]: true }));
+        store.toast(`已从仓库安装「${name}」到 ${agentName}`);
+      } catch (err) {
+        store.toast(`安装失败：${errText(err)}`);
+      } finally {
+        setInstalling((m) => ({ ...m, [name]: false }));
+      }
+    })();
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 50,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'rgba(63,68,56,.35)',
+        backdropFilter: 'blur(6px)',
+        animation: 'fade-in .2s ease-out',
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: 520,
+          maxHeight: '72vh',
+          display: 'flex',
+          flexDirection: 'column',
+          background: '#ffffff',
+          borderRadius: 16,
+          padding: '22px 24px',
+          boxShadow: '0 20px 50px rgba(63,68,56,.2)',
+          animation: 'slide-up .25s cubic-bezier(.16,1,.3,1)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontWeight: 900, fontSize: 15, color: INK }}>浏览技能</span>
+          <span
+            style={{
+              fontFamily: MONO,
+              fontSize: 11.5,
+              color: dim(0.45),
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              minWidth: 0,
+              flex: 1,
+            }}
+          >
+            {label}
+          </span>
+          <span
+            className="rp-hover-primary"
+            onClick={onClose}
+            style={{ color: dim(0.4), cursor: 'pointer', fontSize: 14, flex: 'none', padding: '0 2px' }}
+          >
+            ✕
+          </span>
+        </div>
+        <p style={{ margin: '6px 0 12px', fontSize: 12, color: dim(0.5) }}>
+          点「安装」进入中心存储并安装到默认 Agent（{agentName}）。
+        </p>
+        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+          {skills === null && error === null && (
+            <div style={{ textAlign: 'center', padding: '36px 0', color: dim(0.45), fontSize: 12.5 }}>
+              正在扫描仓库…
+            </div>
+          )}
+          {error !== null && (
+            <div style={{ textAlign: 'center', padding: '36px 0', color: DANGER, fontSize: 12.5 }}>
+              加载失败：{error}
+            </div>
+          )}
+          {skills !== null && skills.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '36px 0', color: dim(0.45), fontSize: 12.5 }}>
+              此仓库内未发现技能（缺少 SKILL.md）
+            </div>
+          )}
+          {(skills ?? []).map((s) => (
+            <div
+              key={s.name}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                padding: '10px 0',
+                borderBottom: '1px dashed rgba(63,68,56,.08)',
+                fontSize: 12.5,
+              }}
+            >
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <span style={{ fontWeight: 700, color: INK, whiteSpace: 'nowrap' }}>{s.name}</span>
+                <span style={{ fontFamily: "'Space Grotesk',sans-serif", color: PRIMARY, marginLeft: 8 }}>
+                  v{s.version}
+                </span>
+                <div
+                  style={{
+                    fontSize: 11.5,
+                    color: dim(0.45),
+                    marginTop: 2,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {s.description}
+                </div>
+              </div>
+              {installed[s.name] ? (
+                <span style={{ fontSize: 12, color: GREEN_DEEP, fontWeight: 700, flex: 'none' }}>✓ 已安装</span>
+              ) : (
+                <span
+                  className="rp-btn-outline"
+                  onClick={() => install(s.name)}
+                  style={{
+                    ...outlineBtn,
+                    fontSize: 11.5,
+                    padding: '5px 14px',
+                    flex: 'none',
+                    opacity: installing[s.name] ? 0.5 : undefined,
+                  }}
+                >
+                  {installing[s.name] ? '安装中…' : '安装'}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** 按 Agent 批量备份：已检测 Agent 多选 + 全选 */
+function AgentBackupPanel(): ReactElement | null {
+  const store = useStore();
+  const agents = (store.snapshot?.agents ?? []).filter((a) => a.detected);
+  const [picked, setPicked] = useState<Record<string, boolean>>({});
+  const [busy, setBusy] = useState(false);
+  if (agents.length === 0) return null;
+
+  const pickedIds = agents.filter((a) => picked[a.id]).map((a) => a.id);
+  const allOn = pickedIds.length === agents.length;
+
+  const toggle = (id: string): void => setPicked((m) => ({ ...m, [id]: !m[id] }));
+  const toggleAll = (): void => {
+    const next: Record<string, boolean> = {};
+    for (const a of agents) next[a.id] = !allOn;
+    setPicked(next);
+  };
+
+  const backup = (): void => {
+    if (busy) return;
+    if (pickedIds.length === 0) {
+      store.toast('请至少勾选一个 Agent');
+      return;
+    }
+    setBusy(true);
+    void (async () => {
+      try {
+        const { count } = await ripple.backupAgents(pickedIds);
+        await store.refresh();
+        store.toast(`已为 ${count} 个技能创建备份`);
+      } catch (err) {
+        store.toast(`备份失败：${errText(err)}`);
+      } finally {
+        setBusy(false);
+      }
+    })();
+  };
+
+  return (
+    <div style={{ ...panelStyle, marginBottom: 14, maxWidth: 860 }}>
+      <div style={{ fontWeight: 900, fontSize: 14, color: INK, marginBottom: 4 }}>按 Agent 备份</div>
+      <p style={{ margin: '0 0 12px', fontSize: 12, color: dim(0.55), lineHeight: 1.7 }}>
+        勾选一个或多个 Agent，一键为其安装的全部技能（去重）创建备份。
+      </p>
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+        {agents.map((a) => {
+          const on = !!picked[a.id];
+          return (
+            <span
+              key={a.id}
+              className="rp-chip"
+              onClick={() => toggle(a.id)}
+              style={{
+                ...segStyle(on),
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '6px 12px',
+              }}
+            >
+              <AgentIcon agentId={a.id} name={a.name} size={14} />
+              {on ? '✓ ' : ''}
+              {a.name}
+            </span>
+          );
+        })}
+        <span className="rp-chip" onClick={toggleAll} style={segStyle(allOn)}>
+          全选
+        </span>
+        <span style={{ flex: 1 }} />
+        <span
+          className="rp-btn-grad"
+          onClick={backup}
+          style={{ ...gradBtn, fontSize: 12.5, padding: '8px 18px', opacity: busy ? 0.6 : undefined }}
+        >
+          {busy ? '备份中…' : `备份 (${pickedIds.length})`}
+        </span>
+      </div>
     </div>
   );
 }
@@ -315,6 +571,7 @@ function BackupsTab(): ReactElement {
 
   return (
     <>
+      <AgentBackupPanel />
       <div
         style={{
           display: 'flex',
@@ -429,6 +686,98 @@ function BackupsTab(): ReactElement {
   );
 }
 
+/** 操作动作 → 中文徽标文案 */
+const OP_LABELS: Record<string, string> = {
+  install: '安装',
+  update: '更新',
+  sync: '同步',
+  uninstall: '卸载',
+  rollback: '回滚',
+  restore: '恢复',
+  backup: '备份',
+  adopt: '接管',
+  placement: '补齐',
+  import: '导入',
+  migrate: '迁移',
+  enable: '启用',
+  disable: '禁用',
+  'add-source': '加来源',
+  'remove-source': '移来源',
+};
+
+function OplogTab(): ReactElement {
+  const store = useStore();
+  const oplog = store.snapshot?.oplog ?? [];
+
+  if (oplog.length === 0) {
+    return (
+      <div style={{ textAlign: 'center', padding: '70px 0', color: dim(0.45) }}>
+        <div style={{ fontSize: 14 }}>暂无操作记录</div>
+        <div style={{ fontSize: 12.5, marginTop: 6, color: 'rgba(75,80,64,.35)' }}>
+          安装、同步、备份等操作会自动记录在这里
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ ...panelStyle, maxWidth: 860, padding: '8px 20px' }}>
+      {oplog.map((op, idx) => (
+        <div
+          key={`${op.at}-${idx}`}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: '10px 0',
+            borderBottom: idx === oplog.length - 1 ? undefined : '1px dashed rgba(63,68,56,.08)',
+            fontSize: 12.5,
+          }}
+        >
+          <span
+            style={{
+              fontFamily: "'Space Grotesk',sans-serif",
+              fontSize: 11.5,
+              color: dim(0.4),
+              whiteSpace: 'nowrap',
+              flex: 'none',
+              width: 96,
+            }}
+          >
+            {fmtTime(op.at, true)}
+          </span>
+          <span
+            style={{
+              fontSize: 10.5,
+              fontWeight: 700,
+              padding: '2px 8px',
+              borderRadius: 999,
+              background: 'rgba(147,168,107,.12)',
+              color: PRIMARY,
+              whiteSpace: 'nowrap',
+              flex: 'none',
+            }}
+          >
+            {OP_LABELS[op.action] ?? op.action}
+          </span>
+          <span style={{ fontWeight: 700, color: INK, whiteSpace: 'nowrap', flex: 'none' }}>{op.target}</span>
+          <span
+            style={{
+              flex: 1,
+              color: dim(0.5),
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {op.detail}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function SettingsView(): ReactElement {
   const store = useStore();
   const { settingsTab } = store;
@@ -439,6 +788,7 @@ export function SettingsView(): ReactElement {
           [
             { key: 'sources', name: '技能来源' },
             { key: 'backups', name: '备份管理' },
+            { key: 'oplog', name: '操作记录' },
           ] as const
         ).map((t) => (
           <span
@@ -451,7 +801,9 @@ export function SettingsView(): ReactElement {
           </span>
         ))}
       </div>
-      {settingsTab === 'sources' ? <SourcesTab /> : <BackupsTab />}
+      {settingsTab === 'sources' && <SourcesTab />}
+      {settingsTab === 'backups' && <BackupsTab />}
+      {settingsTab === 'oplog' && <OplogTab />}
     </>
   );
 }

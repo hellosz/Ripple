@@ -1,19 +1,19 @@
 import type { CSSProperties, ReactElement } from 'react';
 import type { InstallRecord } from '@ripple/hub';
+import type { AgentSummary } from '../../../shared/api.js';
+import { AgentIcon } from '../agent-icons.js';
 import { ripple } from '../ripple-api.js';
 import { targetKey, useStore } from '../store.js';
 import {
   AMBER,
-  GREEN,
+  GREEN_DEEP,
   INK,
-  MONO,
   PRIMARY,
   cardStyle,
   chipStyle,
   dim,
   glyphOf,
   iconBox,
-  joinPath,
   outlineBtn,
 } from '../ui.js';
 
@@ -27,19 +27,22 @@ interface SkillRowData {
   latest: string | null;
 }
 
+/** Agent 存在矩阵单元的状态 */
+type CellStatus =
+  | { kind: 'shared'; enabled: boolean }
+  | { kind: 'dedicated'; enabled: boolean }
+  | { kind: 'implicit-shared' }
+  | { kind: 'absent' };
+
 export function SkillListView(): ReactElement {
   const store = useStore();
-  const { snapshot, view, scope, query, loggedIn, updates, expanded } = store;
+  const { snapshot, view, scope, query, loggedIn, updates } = store;
   if (!snapshot) {
     return <div style={{ textAlign: 'center', padding: '80px 0', color: dim(0.45) }}>加载中…</div>;
   }
 
-  const agentById = new Map(snapshot.agents.map((a) => [a.id, a]));
-  const projectByPath = new Map(snapshot.projects.map((p) => [p.path, p]));
+  const storageShared = snapshot.settings.storage_location === 'shared';
   const updateBySkill = new Map(updates.map((u) => [u.skill, u]));
-  const projectName = (path: string): string =>
-    projectByPath.get(path)?.name ?? path.split(/[\\/]/).filter(Boolean).pop() ?? path;
-  const agentName = (id: string): string => agentById.get(id)?.name ?? id;
 
   // ---- 当前范围内的安装 ----
   let scoped = snapshot.installs;
@@ -49,7 +52,12 @@ export function SkillListView(): ReactElement {
   if (view.kind === 'local' && scope === 'project') scoped = scoped.filter((i) => i.scope !== 'global');
 
   const q = query.trim();
-  const names = [...new Set(scoped.map((i) => i.skill))].sort();
+  const nameSet = new Set(scoped.map((i) => i.skill));
+  // 未纳管但位于共享库中的技能（snapshot.skills 有、installs 无）也进入本地技能列表
+  if (view.kind === 'local' && scope !== 'project') {
+    for (const name of Object.keys(snapshot.skills)) nameSet.add(name);
+  }
+  const names = [...nameSet].sort();
   const rows: SkillRowData[] = names
     .map((name) => {
       const meta = snapshot.skills[name] ?? { version: null, description: null };
@@ -94,47 +102,99 @@ export function SkillListView(): ReactElement {
     });
   };
 
-  const toggleEnabled = (row: SkillRowData, i: InstallRecord): void => {
+  // ---- 存在矩阵 ----
+  const cellStatus = (skill: string, a: AgentSummary): CellStatus => {
+    const recs = snapshot.installs.filter((i) => i.skill === skill && i.agent === a.id);
+    if (recs.length > 0) {
+      const enabled = recs.some((i) => i.enabled);
+      if (recs.some((i) => i.mode === 'shared')) return { kind: 'shared', enabled };
+      return { kind: 'dedicated', enabled };
+    }
+    if (a.sharedDirSupport && storageShared && skill in snapshot.skills) {
+      return { kind: 'implicit-shared' };
+    }
+    return { kind: 'absent' };
+  };
+
+  const fillAgent = (skill: string, a: AgentSummary): void => {
     store.run(async () => {
-      const target = i.scope === 'global' ? { agent: i.agent } : { agent: i.agent, projectDir: i.scope };
-      await ripple.setEnabled(row.name, target, !i.enabled);
+      const rec = await ripple.addPlacement(skill, { agent: a.id });
       await store.refresh();
-      store.toast(`${i.enabled ? '已禁用' : '已启用'}：${row.name} @ ${agentName(i.agent)}`);
+      store.toast(`已补齐 ${skill} 到 ${a.name}（${rec.mode === 'shared' ? '通用' : '专属'}）`);
     });
   };
 
-  const uninstallOne = (row: SkillRowData, i: InstallRecord): void => {
-    store.run(async () => {
-      const target = i.scope === 'global' ? { agent: i.agent } : { agent: i.agent, projectDir: i.scope };
-      await ripple.uninstall(row.name, target);
-      await store.refresh();
-      store.toast(`已卸载：${row.name} @ ${agentName(i.agent)}`);
-    });
-  };
+  const tagStyle = (bg: string, outline: boolean): CSSProperties => ({
+    position: 'absolute',
+    right: -5,
+    bottom: -5,
+    fontSize: 8,
+    fontWeight: 800,
+    lineHeight: 1,
+    padding: '2px 3px',
+    borderRadius: 5,
+    background: outline ? '#ffffff' : bg,
+    color: outline ? bg : '#ffffff',
+    border: `1px solid ${bg}`,
+    fontFamily: "'Noto Sans SC',sans-serif",
+  });
 
-  const updateOne = (row: SkillRowData, i: InstallRecord): void => {
-    const latest = row.latest;
-    if (!latest) return;
-    store.run(async () => {
-      const target = i.scope === 'global' ? { agent: i.agent } : { agent: i.agent, projectDir: i.scope };
-      await ripple.installFromRegistry(row.name, [target]);
-      await store.refresh();
-      await store.refreshUpdates();
-      store.toast(`已更新 ${row.name} → v${latest}`);
-    });
+  const renderCell = (row: SkillRowData, a: AgentSummary): ReactElement => {
+    const st = cellStatus(row.name, a);
+    const base: CSSProperties = {
+      position: 'relative',
+      width: 26,
+      height: 26,
+      borderRadius: 8,
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      flex: 'none',
+    };
+    if (st.kind === 'absent') {
+      return (
+        <span
+          key={a.id}
+          className="rp-chip"
+          title={`${a.name} · 未安装 · 点击补齐`}
+          onClick={() => fillAgent(row.name, a)}
+          style={{ ...base, border: '1px dashed rgba(75,80,64,.3)', cursor: 'pointer' }}
+        >
+          <AgentIcon agentId={a.id} name={a.name} size={15} color="rgba(75,80,64,.35)" />
+        </span>
+      );
+    }
+    if (st.kind === 'implicit-shared') {
+      return (
+        <span
+          key={a.id}
+          title={`${a.name} · 通用（经共享目录标准自动可用）`}
+          style={{ ...base, border: `1.5px solid rgba(127,165,136,.6)` }}
+        >
+          <AgentIcon agentId={a.id} name={a.name} size={15} />
+          <span style={tagStyle(GREEN_DEEP, true)}>通</span>
+        </span>
+      );
+    }
+    const shared = st.kind === 'shared';
+    const tip =
+      `${a.name} · 已安装（${shared ? '通用' : '专属'}）` + (st.enabled ? '' : ' · 已禁用');
+    return (
+      <span
+        key={a.id}
+        title={tip}
+        style={{
+          ...base,
+          border: `1px solid ${shared ? 'rgba(127,165,136,.5)' : 'rgba(107,127,67,.4)'}`,
+          background: shared ? 'rgba(127,165,136,.12)' : 'rgba(147,168,107,.14)',
+          opacity: st.enabled ? 1 : 0.45,
+        }}
+      >
+        <AgentIcon agentId={a.id} name={a.name} size={15} />
+        <span style={tagStyle(shared ? GREEN_DEEP : PRIMARY, false)}>{shared ? '通' : '专'}</span>
+      </span>
+    );
   };
-
-  const toggleOnStyle: CSSProperties = {
-    width: 34,
-    height: 19,
-    borderRadius: 999,
-    background: '#93a86b',
-    position: 'relative',
-    cursor: 'pointer',
-    flex: 'none',
-    transition: 'background .2s',
-  };
-  const toggleOffStyle: CSSProperties = { ...toggleOnStyle, background: 'rgba(75,80,64,.2)' };
 
   return (
     <>
@@ -192,20 +252,31 @@ export function SkillListView(): ReactElement {
 
       {/* 技能行 */}
       {rows.map((r) => {
-        const isOpen = !!expanded[r.name];
         const versionText = r.conflict
           ? r.versions.map((v) => `v${v}`).join(' / ')
           : `v${r.installs[0]?.version ?? r.version ?? '—'}`;
+        // 已检测或已有该技能安装记录的 Agent 进入存在矩阵
+        const matrixAgents = snapshot.agents.filter(
+          (a) => a.detected || snapshot.installs.some((i) => i.agent === a.id && i.skill === r.name),
+        );
         return (
           <div key={r.name} style={{ ...cardStyle, marginBottom: 10, animation: 'fade-in .25s ease-out' }}>
-            <div
-              onClick={() => store.toggleExpanded(r.name)}
-              style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px', cursor: 'pointer' }}
-            >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px' }}>
               <span style={iconBox}>{glyphOf(r.name)}</span>
               <div style={{ minWidth: 0, width: 250, flex: 'none' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontWeight: 700, fontSize: 14, color: INK, whiteSpace: 'nowrap' }}>{r.name}</span>
+                  <span
+                    style={{
+                      fontWeight: 700,
+                      fontSize: 14,
+                      color: INK,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {r.name}
+                  </span>
                   {loggedIn && r.latest !== null && (
                     <span
                       style={{
@@ -216,6 +287,7 @@ export function SkillListView(): ReactElement {
                         borderRadius: 999,
                         padding: '2px 8px',
                         whiteSpace: 'nowrap',
+                        flex: 'none',
                       }}
                     >
                       可更新 v{r.latest}
@@ -231,6 +303,7 @@ export function SkillListView(): ReactElement {
                         borderRadius: 999,
                         padding: '2px 8px',
                         whiteSpace: 'nowrap',
+                        flex: 'none',
                       }}
                     >
                       版本不一致
@@ -251,33 +324,9 @@ export function SkillListView(): ReactElement {
                 </div>
               </div>
 
-              {/* 安装矩阵 chips */}
-              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {r.installs.map((i) => {
-                  const isGlobal = i.scope === 'global';
-                  const label = (isGlobal ? '' : `${projectName(i.scope)} · `) + agentName(i.agent);
-                  const tip = `${agentName(i.agent)} · ${isGlobal ? '全局' : projectName(i.scope)} · v${i.version}${
-                    i.enabled ? '' : ' · 已禁用'
-                  }`;
-                  return (
-                    <span
-                      key={targetKey(i.agent, isGlobal ? undefined : i.scope)}
-                      title={tip}
-                      style={{
-                        fontSize: 10.5,
-                        padding: '3px 9px',
-                        borderRadius: 999,
-                        whiteSpace: 'nowrap',
-                        border: `1px solid ${i.enabled ? 'rgba(107,127,67,.3)' : 'rgba(75,80,64,.15)'}`,
-                        background: i.enabled ? 'rgba(147,168,107,.07)' : 'rgba(75,80,64,.04)',
-                        color: i.enabled ? PRIMARY : dim(0.45),
-                        textDecoration: i.enabled ? undefined : 'line-through',
-                      }}
-                    >
-                      {label}
-                    </span>
-                  );
-                })}
+              {/* Agent 存在矩阵 */}
+              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+                {matrixAgents.map((a) => renderCell(r, a))}
               </div>
 
               <span
@@ -292,11 +341,15 @@ export function SkillListView(): ReactElement {
                 {versionText}
               </span>
               <span
+                className="rp-btn-outline"
+                onClick={() => openSyncFor(r)}
+                style={{ ...outlineBtn, fontSize: 12, padding: '6px 14px', flex: 'none' }}
+              >
+                同步
+              </span>
+              <span
                 className="rp-btn-ghost"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  store.setHistoryFor(r.name);
-                }}
+                onClick={() => store.setHistoryFor(r.name)}
                 title="备份与历史记录"
                 style={{
                   border: '1px solid rgba(63,68,56,.12)',
@@ -311,141 +364,7 @@ export function SkillListView(): ReactElement {
               >
                 历史
               </span>
-              <span
-                className="rp-btn-outline"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openSyncFor(r);
-                }}
-                style={{ ...outlineBtn, fontSize: 12, padding: '6px 14px', flex: 'none' }}
-              >
-                同步…
-              </span>
-              <span
-                style={{
-                  color: 'rgba(75,80,64,.35)',
-                  flex: 'none',
-                  transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                  transition: 'transform .2s',
-                }}
-              >
-                ▾
-              </span>
             </div>
-
-            {/* 展开：逐处管理 */}
-            {isOpen && (
-              <div style={{ borderTop: '1px solid rgba(63,68,56,.06)', padding: '6px 18px 12px', animation: 'fade-in .2s ease-out' }}>
-                {r.installs.map((i) => {
-                  const isGlobal = i.scope === 'global';
-                  const agent = agentById.get(i.agent);
-                  const path = isGlobal
-                    ? joinPath(agent?.globalPath ?? `~/${i.agent}`, r.name)
-                    : joinPath(i.scope, agent?.projectRelPath ?? '.claude/skills', r.name);
-                  const outdated =
-                    (r.latest !== null && i.version !== r.latest) ||
-                    (r.conflict && r.version !== null && i.version !== r.version);
-                  const canUpdate = loggedIn && r.latest !== null && i.version !== r.latest;
-                  return (
-                    <div
-                      key={targetKey(i.agent, isGlobal ? undefined : i.scope)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 12,
-                        padding: '9px 0',
-                        borderBottom: '1px dashed rgba(63,68,56,.06)',
-                        fontSize: 12.5,
-                      }}
-                    >
-                      <span
-                        style={{
-                          width: 210,
-                          flex: 'none',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          color: INK,
-                          fontWeight: 500,
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        <span
-                          style={{
-                            fontSize: 10,
-                            fontWeight: 700,
-                            padding: '2px 7px',
-                            borderRadius: 6,
-                            flex: 'none',
-                            background: isGlobal ? 'rgba(147,168,107,.1)' : 'rgba(127,165,136,.1)',
-                            color: isGlobal ? PRIMARY : GREEN,
-                          }}
-                        >
-                          {isGlobal ? '全局' : '项目'}
-                        </span>
-                        {agentName(i.agent) + (isGlobal ? '' : ` · ${projectName(i.scope)}`)}
-                      </span>
-                      <span
-                        style={{
-                          flex: 1,
-                          fontFamily: MONO,
-                          fontSize: 11.5,
-                          color: dim(0.45),
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {path}
-                      </span>
-                      <span
-                        style={{
-                          fontFamily: "'Space Grotesk',sans-serif",
-                          fontSize: 12,
-                          color: outdated ? AMBER : dim(0.55),
-                          whiteSpace: 'nowrap',
-                          flex: 'none',
-                        }}
-                      >
-                        v{i.version}
-                      </span>
-                      {canUpdate && (
-                        <span
-                          className="rp-underline"
-                          onClick={() => updateOne(r, i)}
-                          style={{ fontSize: 11.5, fontWeight: 700, color: PRIMARY, cursor: 'pointer', whiteSpace: 'nowrap', flex: 'none' }}
-                        >
-                          更新
-                        </span>
-                      )}
-                      <span onClick={() => toggleEnabled(r, i)} style={i.enabled ? toggleOnStyle : toggleOffStyle}>
-                        <span
-                          style={{
-                            position: 'absolute',
-                            top: 2,
-                            width: 15,
-                            height: 15,
-                            borderRadius: '50%',
-                            background: '#ffffff',
-                            boxShadow: '0 1px 3px rgba(63,68,56,.25)',
-                            transition: 'left .2s',
-                            left: i.enabled ? 17 : 2,
-                          }}
-                        />
-                      </span>
-                      <span
-                        className="rp-hover-danger"
-                        onClick={() => uninstallOne(r, i)}
-                        title="卸载"
-                        style={{ color: 'rgba(75,80,64,.35)', cursor: 'pointer', flex: 'none', padding: '2px 4px', borderRadius: 5 }}
-                      >
-                        ✕
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
           </div>
         );
       })}

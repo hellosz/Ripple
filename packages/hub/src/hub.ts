@@ -18,6 +18,7 @@ import type {
   BackupRecord,
   DetectedAgent,
   DistMode,
+  EffectiveMode,
   HistoryEntry,
   HubState,
   InstallRecord,
@@ -138,7 +139,7 @@ export class RippleHub {
     const adapter = getAdapter(target.agent);
     if (!adapter) throw new Error(`Unknown agent: ${target.agent}`);
     // 共享目录标准：存储位于 ~/.agents/skills 且 Agent 原生支持时零分发（除非显式 dedicated 个性化）
-    let mode: import('./types.js').EffectiveMode;
+    let mode: EffectiveMode;
     if (
       !target.dedicated &&
       adapter.sharedDirSupport &&
