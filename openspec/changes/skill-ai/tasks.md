@@ -6,7 +6,7 @@
 - [x] 1.3 shared api / preload：aiConfig get/set、aiScore、aiOptimize
 
 ## 2. renderer
-- [ ] 2.1 设置「AI 服务商」tab（openai/deepseek/custom 表单、连接测试）
-- [ ] 2.2 详情内评分卡（总分/等级/维度条+理由）
-- [ ] 2.3 「优化」按钮 → 建议清单 + git 风格 diff（前后对比）→ 一键应用/放弃
-- [ ] 2.4 全绿并打包
+- [x] 2.1 设置「AI 服务商」tab（openai/deepseek/custom 表单、连接测试）
+- [x] 2.2 详情内评分卡（总分/等级/维度条+理由）
+- [x] 2.3 「优化」按钮 → 建议清单 + git 风格 diff（前后对比）→ 一键应用/放弃
+- [x] 2.4 全绿并打包

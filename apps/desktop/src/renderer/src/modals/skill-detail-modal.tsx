@@ -1,17 +1,170 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ReactElement } from 'react';
+import type { AiPatch, AiScoreResult, AiSuggestResult } from '@ripple/contract';
+import { DiffBlock, ScoreCard, SuggestList } from '../components/ai-panels.js';
 import { FileViewer } from '../components/file-viewer.js';
 import type { SkillFileEntry } from '../components/file-viewer.js';
 import { ripple } from '../ripple-api.js';
 import { errText, useStore } from '../store.js';
-import { DANGER, INK, MONO, PRIMARY, dim, originLabel } from '../ui.js';
+import { AMBER, DANGER, GREEN_DEEP, INK, MONO, PRIMARY, dim, gradBtn, originLabel, outlineBtn } from '../ui.js';
 
-/** 本地 Skill 详情：左侧文件树 + 右侧 VSCode 风格内容区，支持编辑保存（写回 SSOT 并重建复制型分发） */
+type AiView = 'files' | 'score' | 'optimize';
+
+/** 优化视图：建议清单 + patch diff（应用 / 全部应用 / 放弃） */
+function OptimizePanel({
+  result,
+  files,
+  applied,
+  applying,
+  onApply,
+  onDiscard,
+}: {
+  result: AiSuggestResult;
+  files: SkillFileEntry[];
+  /** 已应用的 patch 路径集合 */
+  applied: Record<string, boolean>;
+  applying: boolean;
+  onApply: (patches: AiPatch[]) => void;
+  onDiscard: () => void;
+}): ReactElement {
+  const pending = result.patches.filter((p) => !applied[p.path]);
+  const contentOf = (path: string): string => files.find((f) => f.path === path)?.content ?? '';
+
+  return (
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flex: 'none' }}>
+        <span style={{ fontWeight: 900, fontSize: 13.5, color: INK }}>优化建议</span>
+        {result.source === 'fallback' && (
+          <span
+            style={{
+              fontSize: 10.5,
+              fontWeight: 700,
+              padding: '2px 9px',
+              borderRadius: 999,
+              background: 'rgba(169,138,91,.12)',
+              color: AMBER,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            未配置 AI，以下为本地规则建议
+          </span>
+        )}
+        <span style={{ flex: 1 }} />
+        {pending.length > 0 && (
+          <span
+            className="rp-btn-grad"
+            onClick={() => onApply(pending)}
+            style={{ ...gradBtn, fontSize: 11.5, padding: '5px 14px', flex: 'none', opacity: applying ? 0.5 : undefined }}
+          >
+            {applying ? '应用中…' : `全部应用 (${pending.length})`}
+          </span>
+        )}
+        <span
+          className="rp-btn-outline"
+          onClick={onDiscard}
+          style={{ ...outlineBtn, fontSize: 11.5, padding: '5px 14px', flex: 'none' }}
+        >
+          放弃
+        </span>
+      </div>
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingRight: 4 }}>
+        <SuggestList result={result} />
+        {result.patches.map((p) => {
+          const done = !!applied[p.path];
+          const current = contentOf(p.path);
+          return (
+            <div
+              key={p.path}
+              style={{
+                border: '1px solid rgba(63,68,56,.1)',
+                borderRadius: 12,
+                marginBottom: 12,
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '9px 14px',
+                  background: 'rgba(63,68,56,.03)',
+                  borderBottom: '1px solid rgba(63,68,56,.07)',
+                }}
+              >
+                <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 700, color: INK, whiteSpace: 'nowrap' }}>
+                  {p.path}
+                </span>
+                {current === '' && (
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      padding: '1px 8px',
+                      borderRadius: 999,
+                      background: 'rgba(127,165,136,.12)',
+                      color: GREEN_DEEP,
+                      whiteSpace: 'nowrap',
+                      flex: 'none',
+                    }}
+                  >
+                    新文件
+                  </span>
+                )}
+                <span style={{ flex: 1 }} />
+                {done ? (
+                  <span style={{ fontSize: 11.5, color: GREEN_DEEP, fontWeight: 700, flex: 'none' }}>✓ 已应用</span>
+                ) : (
+                  <span
+                    className="rp-btn-outline"
+                    onClick={() => onApply([p])}
+                    style={{
+                      ...outlineBtn,
+                      fontSize: 11,
+                      padding: '4px 12px',
+                      flex: 'none',
+                      opacity: applying ? 0.5 : undefined,
+                    }}
+                  >
+                    应用
+                  </span>
+                )}
+              </div>
+              <p style={{ margin: 0, padding: '8px 14px', fontSize: 12, color: dim(0.55), lineHeight: 1.7 }}>
+                {p.rationale}
+              </p>
+              <div style={{ padding: '0 10px 10px' }}>
+                <DiffBlock oldText={current} newText={p.new_content} />
+              </div>
+            </div>
+          );
+        })}
+        {result.patches.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '20px 0 30px', color: dim(0.4), fontSize: 12 }}>
+            无可应用的文件补丁
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** 本地 Skill 详情：左侧文件树 + 右侧 VSCode 风格内容区，支持编辑保存（写回 SSOT 并重建复制型分发）；
+ * 头部提供「评分」「优化」AI 入口（结果在弹窗生命周期内缓存） */
 export function SkillDetailModal(): ReactElement | null {
   const store = useStore();
   const { snapshot, skillDetail } = store;
   const [files, setFiles] = useState<SkillFileEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // ---- AI：评分 / 优化（缓存于弹窗生命周期） ----
+  const [aiView, setAiView] = useState<AiView>('files');
+  const [score, setScore] = useState<AiScoreResult | null>(null);
+  const [scoring, setScoring] = useState(false);
+  const [suggest, setSuggest] = useState<AiSuggestResult | null>(null);
+  const [optimizing, setOptimizing] = useState(false);
+  const [applied, setApplied] = useState<Record<string, boolean>>({});
+  const [applying, setApplying] = useState(false);
 
   const skill = skillDetail;
 
@@ -27,6 +180,13 @@ export function SkillDetailModal(): ReactElement | null {
   useEffect(() => {
     setFiles(null);
     setError(null);
+    setAiView('files');
+    setScore(null);
+    setScoring(false);
+    setSuggest(null);
+    setOptimizing(false);
+    setApplied({});
+    setApplying(false);
     if (skill) void load(skill);
   }, [skill, load]);
 
@@ -47,6 +207,94 @@ export function SkillDetailModal(): ReactElement | null {
       throw err;
     }
   };
+
+  const runScore = (force: boolean): void => {
+    if (scoring) return;
+    if (score && !force) {
+      // 已评分：直接展示缓存结果
+      setAiView('score');
+      return;
+    }
+    setAiView('score');
+    setScoring(true);
+    void (async () => {
+      try {
+        setScore(await ripple.aiScore(skill));
+      } catch (err) {
+        store.toast(`评分失败：${errText(err)}`);
+        if (!score) setAiView('files');
+      } finally {
+        setScoring(false);
+      }
+    })();
+  };
+
+  const runOptimize = (): void => {
+    if (optimizing) return;
+    if (suggest) {
+      // 已生成：直接展示缓存结果
+      setAiView('optimize');
+      return;
+    }
+    setAiView('optimize');
+    setOptimizing(true);
+    void (async () => {
+      try {
+        setSuggest(await ripple.aiOptimize(skill));
+        setApplied({});
+      } catch (err) {
+        store.toast(`优化失败：${errText(err)}`);
+        setAiView('files');
+      } finally {
+        setOptimizing(false);
+      }
+    })();
+  };
+
+  const applyPatches = (patches: AiPatch[]): void => {
+    if (applying || patches.length === 0) return;
+    setApplying(true);
+    void (async () => {
+      try {
+        const { applied: n } = await ripple.aiApplyPatches(skill, patches);
+        setApplied((m) => {
+          const next = { ...m };
+          for (const p of patches) next[p.path] = true;
+          return next;
+        });
+        await load(skill);
+        await store.refresh();
+        store.toast(`已应用 ${n} 个补丁，复制型分发已重建`);
+      } catch (err) {
+        store.toast(`应用补丁失败：${errText(err)}`);
+      } finally {
+        setApplying(false);
+      }
+    })();
+  };
+
+  const discardOptimize = (): void => {
+    setSuggest(null);
+    setApplied({});
+    setAiView('files');
+  };
+
+  const headBtn = (label: string, busyLabel: string, busy: boolean, active: boolean, onClick: () => void): ReactElement => (
+    <span
+      className="rp-btn-outline"
+      onClick={onClick}
+      style={{
+        ...outlineBtn,
+        fontSize: 11.5,
+        padding: '4px 13px',
+        flex: 'none',
+        opacity: busy ? 0.55 : undefined,
+        background: active ? 'rgba(147,168,107,.12)' : undefined,
+      }}
+    >
+      {busy ? busyLabel : label}
+    </span>
+  );
 
   return (
     <div
@@ -113,6 +361,10 @@ export function SkillDetailModal(): ReactElement | null {
           >
             {meta?.description ?? ''}
           </span>
+          {aiView !== 'files' &&
+            headBtn('← 返回文件', '', false, false, () => setAiView('files'))}
+          {headBtn('评分', '评分中…', scoring, aiView === 'score', () => runScore(false))}
+          {headBtn('优化', '生成中…', optimizing, aiView === 'optimize', runOptimize)}
           <span
             className="rp-hover-primary"
             onClick={close}
@@ -122,17 +374,48 @@ export function SkillDetailModal(): ReactElement | null {
           </span>
         </div>
         <div style={{ flex: 1, minHeight: 0, padding: '0 22px 18px' }}>
-          {files === null && error === null && (
+          {aiView === 'score' && score !== null && !scoring && (
+            <ScoreCard result={score} scoring={scoring} onRescore={() => runScore(true)} />
+          )}
+          {aiView === 'score' && (score === null || scoring) && (
             <div style={{ textAlign: 'center', padding: '120px 0', color: dim(0.45), fontSize: 13 }}>
-              正在读取技能文件…
+              评分中…
+              <div style={{ fontSize: 11.5, marginTop: 8, color: dim(0.35) }}>正在按 6 维 rubric 分析技能内容</div>
             </div>
           )}
-          {error !== null && (
-            <div style={{ textAlign: 'center', padding: '120px 0', color: DANGER, fontSize: 13 }}>
-              读取失败：{error}
+          {aiView === 'optimize' && suggest !== null && !optimizing && (
+            <OptimizePanel
+              result={suggest}
+              files={files ?? []}
+              applied={applied}
+              applying={applying}
+              onApply={applyPatches}
+              onDiscard={discardOptimize}
+            />
+          )}
+          {aiView === 'optimize' && (suggest === null || optimizing) && (
+            <div style={{ textAlign: 'center', padding: '120px 0', color: dim(0.45), fontSize: 13 }}>
+              生成优化建议中…
+              <div style={{ fontSize: 11.5, marginTop: 8, color: dim(0.35) }}>
+                正在分析技能并生成建议与补丁，可能需要一两分钟
+              </div>
             </div>
           )}
-          {files !== null && <FileViewer files={files} height="100%" onSave={onSave} />}
+          {aiView === 'files' && (
+            <>
+              {files === null && error === null && (
+                <div style={{ textAlign: 'center', padding: '120px 0', color: dim(0.45), fontSize: 13 }}>
+                  正在读取技能文件…
+                </div>
+              )}
+              {error !== null && (
+                <div style={{ textAlign: 'center', padding: '120px 0', color: DANGER, fontSize: 13 }}>
+                  读取失败：{error}
+                </div>
+              )}
+              {files !== null && <FileViewer files={files} height="100%" onSave={onSave} />}
+            </>
+          )}
         </div>
       </div>
     </div>

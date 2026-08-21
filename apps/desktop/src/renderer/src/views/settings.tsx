@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { CSSProperties, ReactElement } from 'react';
 import type { RepoSkill } from '@ripple/hub';
+import type { AiProvider } from '../../../shared/api.js';
 import { AgentIcon } from '../agent-icons.js';
 import { ripple } from '../ripple-api.js';
 import { errText, useStore } from '../store.js';
@@ -463,6 +464,201 @@ function RepoBrowseModal({
   );
 }
 
+/** 各服务商的推荐默认值（切换时预填，可修改；custom 需手填） */
+const AI_PROVIDER_DEFAULTS: Record<AiProvider, { baseUrl: string; model: string }> = {
+  openai: { baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini' },
+  deepseek: { baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat' },
+  custom: { baseUrl: '', model: '' },
+};
+
+const AI_PROVIDER_NAMES: Record<AiProvider, string> = {
+  openai: 'OpenAI',
+  deepseek: 'DeepSeek',
+  custom: '自定义',
+};
+
+const aiFieldRow: CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, fontSize: 12.5 };
+const aiLabel: CSSProperties = { width: 70, color: dim(0.5), flex: 'none' };
+
+/** 「AI 服务商」tab：多服务商配置（baseUrl/model/apiKey）+ 连接测试 */
+function AiTab(): ReactElement {
+  const store = useStore();
+  const [loaded, setLoaded] = useState(false);
+  const [hasKey, setHasKey] = useState(false);
+  const [provider, setProvider] = useState<AiProvider>('openai');
+  const [baseUrl, setBaseUrl] = useState('');
+  const [model, setModel] = useState('');
+  const [apiKey, setApiKey] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  /** 已保存配置的服务商与字段（切回该服务商时恢复保存值而非默认值） */
+  const [savedCfg, setSavedCfg] = useState<{ provider: AiProvider; baseUrl: string; model: string } | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    ripple
+      .aiGetConfig()
+      .then((cfg) => {
+        if (!alive) return;
+        setProvider(cfg.provider);
+        setBaseUrl(cfg.baseUrl);
+        setModel(cfg.model);
+        setHasKey(cfg.hasKey);
+        setSavedCfg({ provider: cfg.provider, baseUrl: cfg.baseUrl, model: cfg.model });
+        setLoaded(true);
+      })
+      .catch((err: unknown) => {
+        if (alive) store.toast(`读取 AI 配置失败：${errText(err)}`);
+      });
+    return () => {
+      alive = false;
+    };
+    // 仅挂载时读取一次
+  }, []);
+
+  const pickProvider = (p: AiProvider): void => {
+    setProvider(p);
+    // 已保存配置的服务商 → 恢复保存值；否则预填该服务商默认值（custom 留空手填）
+    if (savedCfg && savedCfg.provider === p) {
+      setBaseUrl(savedCfg.baseUrl);
+      setModel(savedCfg.model);
+    } else {
+      setBaseUrl(AI_PROVIDER_DEFAULTS[p].baseUrl);
+      setModel(AI_PROVIDER_DEFAULTS[p].model);
+    }
+  };
+
+  const save = (): void => {
+    if (saving) return;
+    if (provider === 'custom' && (!baseUrl.trim() || !model.trim())) {
+      store.toast('自定义服务商需填写 Base URL 与模型名');
+      return;
+    }
+    setSaving(true);
+    void (async () => {
+      try {
+        const key = apiKey.trim();
+        const cfg = await ripple.aiSetConfig({
+          provider,
+          baseUrl: baseUrl.trim() || undefined,
+          model: model.trim() || undefined,
+          ...(key ? { apiKey: key } : {}),
+        });
+        setProvider(cfg.provider);
+        setBaseUrl(cfg.baseUrl);
+        setModel(cfg.model);
+        setHasKey(cfg.hasKey);
+        setSavedCfg({ provider: cfg.provider, baseUrl: cfg.baseUrl, model: cfg.model });
+        setApiKey('');
+        store.toast(`已保存 AI 配置（${AI_PROVIDER_NAMES[cfg.provider]} · ${cfg.model}）`);
+      } catch (err) {
+        store.toast(`保存失败：${errText(err)}`);
+      } finally {
+        setSaving(false);
+      }
+    })();
+  };
+
+  const test = (): void => {
+    if (testing) return;
+    setTesting(true);
+    void (async () => {
+      try {
+        const r = await ripple.aiTest();
+        store.toast(r.ok ? `连接成功：${r.message}` : `连接失败：${r.message}`);
+      } catch (err) {
+        store.toast(`连接失败：${errText(err)}`);
+      } finally {
+        setTesting(false);
+      }
+    })();
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 860 }}>
+      <div style={panelStyle}>
+        <div style={{ fontWeight: 900, fontSize: 14, color: INK, marginBottom: 4 }}>AI 服务商</div>
+        <p style={{ margin: '0 0 14px', fontSize: 12, color: dim(0.55), lineHeight: 1.7 }}>
+          用于技能「评分」与「优化」。支持 OpenAI、DeepSeek 或任意 OpenAI 兼容服务（自定义 Base URL / 模型）。
+        </p>
+        <div style={aiFieldRow}>
+          <span style={aiLabel}>服务商</span>
+          {(['openai', 'deepseek', 'custom'] as const).map((p) => (
+            <span key={p} className="rp-chip" onClick={() => pickProvider(p)} style={segStyle(provider === p)}>
+              {AI_PROVIDER_NAMES[p]}
+            </span>
+          ))}
+        </div>
+        <div style={aiFieldRow}>
+          <span style={aiLabel}>Base URL</span>
+          <input
+            className="rp-input"
+            value={baseUrl}
+            onChange={(e) => setBaseUrl(e.target.value)}
+            placeholder={provider === 'custom' ? 'https://your-host/v1（必填）' : AI_PROVIDER_DEFAULTS[provider].baseUrl}
+            style={{ ...inputStyle, flex: 1, minWidth: 0 }}
+          />
+        </div>
+        <div style={aiFieldRow}>
+          <span style={aiLabel}>模型</span>
+          <input
+            className="rp-input"
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            placeholder={provider === 'custom' ? '模型名（必填）' : AI_PROVIDER_DEFAULTS[provider].model}
+            style={{ ...inputStyle, flex: 1, minWidth: 0 }}
+          />
+        </div>
+        <div style={aiFieldRow}>
+          <span style={aiLabel}>API Key</span>
+          <input
+            className="rp-input"
+            type="password"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder={hasKey ? '已保存（留空不改，输入新值覆盖）' : 'sk-…'}
+            style={{ ...inputStyle, flex: 1, minWidth: 0 }}
+          />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14 }}>
+          <span
+            className="rp-btn-grad"
+            onClick={save}
+            style={{ ...gradBtn, fontSize: 12.5, padding: '8px 18px', opacity: saving || !loaded ? 0.6 : undefined }}
+          >
+            {saving ? '保存中…' : '保存'}
+          </span>
+          <span
+            className="rp-btn-outline"
+            onClick={test}
+            style={{ ...outlineBtn, fontSize: 12.5, padding: '8px 18px', opacity: testing ? 0.6 : undefined }}
+          >
+            {testing ? '测试中…' : '测试连接'}
+          </span>
+          {hasKey && (
+            <span style={{ fontSize: 11.5, color: GREEN_DEEP, fontWeight: 700 }}>✓ API Key 已配置</span>
+          )}
+        </div>
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          border: '1px solid rgba(127,165,136,.25)',
+          background: 'rgba(127,165,136,.05)',
+          borderRadius: 11,
+          padding: '10px 16px',
+          fontSize: 12,
+          color: GREEN_DEEP,
+        }}
+      >
+        ✓ API Key 经系统安全存储（safeStorage）加密保存，仅在本机主进程使用，不上传服务器
+      </div>
+    </div>
+  );
+}
+
 /** 按 Agent 批量备份：已检测 Agent 多选 + 全选 */
 function AgentBackupPanel(): ReactElement | null {
   const store = useStore();
@@ -787,6 +983,7 @@ export function SettingsView(): ReactElement {
         {(
           [
             { key: 'sources', name: '技能来源' },
+            { key: 'ai', name: 'AI 服务商' },
             { key: 'backups', name: '备份管理' },
             { key: 'oplog', name: '操作记录' },
           ] as const
@@ -802,6 +999,7 @@ export function SettingsView(): ReactElement {
         ))}
       </div>
       {settingsTab === 'sources' && <SourcesTab />}
+      {settingsTab === 'ai' && <AiTab />}
       {settingsTab === 'backups' && <BackupsTab />}
       {settingsTab === 'oplog' && <OplogTab />}
     </>

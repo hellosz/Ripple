@@ -14,7 +14,7 @@ export interface View {
 
 export type ScopeFilter = 'all' | 'global' | 'project';
 export type MarketTab = 'browse' | 'rank' | 'collections';
-export type SettingsTab = 'sources' | 'backups' | 'oplog';
+export type SettingsTab = 'sources' | 'ai' | 'backups' | 'oplog';
 export type SyncMode = 'sync' | 'registry';
 
 export interface SyncModalState {
