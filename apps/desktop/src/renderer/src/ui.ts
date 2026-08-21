@@ -8,6 +8,8 @@ export const GREEN = '#7fa588';
 export const GREEN_DEEP = '#6d8f76';
 export const AMBER = '#a98a5b';
 export const DANGER = '#bd8578';
+/** 社区开源（仓库来源）标识蓝 */
+export const REPO_BLUE = '#4b7fb0';
 export const GRAD = 'linear-gradient(135deg,#93a86b,#b9c69a)';
 export const MONO = "'Space Grotesk',ui-monospace,monospace";
 export const SANS = "'Noto Sans SC',system-ui,sans-serif";
@@ -113,6 +115,44 @@ export function glyphOf(name: string): string {
 
 export function fmtCount(n: number): string {
   return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
+}
+
+/** ISO → 相对时间（如 "3 小时前"）；解析失败原样返回 */
+export function fmtRelative(iso: string): string {
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return iso;
+  const s = Math.max(0, Math.round((Date.now() - t) / 1000));
+  if (s < 60) return '刚刚';
+  if (s < 3600) return `${Math.floor(s / 60)} 分钟前`;
+  if (s < 86400) return `${Math.floor(s / 3600)} 小时前`;
+  if (s < 86400 * 30) return `${Math.floor(s / 86400)} 天前`;
+  if (s < 86400 * 365) return `${Math.floor(s / 86400 / 30)} 个月前`;
+  return `${Math.floor(s / 86400 / 365)} 年前`;
+}
+
+/** 宽松语义化版本比较：a<b → -1，a==b → 0，a>b → 1（非数字段按字典序） */
+export function cmpVer(a: string, b: string): number {
+  const pa = a.split(/[.-]/);
+  const pb = b.split(/[.-]/);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const x = pa[i] ?? '';
+    const y = pb[i] ?? '';
+    if (x === y) continue;
+    const nx = Number(x);
+    const ny = Number(y);
+    if (Number.isFinite(nx) && Number.isFinite(ny)) return nx < ny ? -1 : 1;
+    return x < y ? -1 : 1;
+  }
+  return 0;
+}
+
+/** InstallRecord.origin → 来源徽标文案（registry、repo:<id>、zip、adopt、local） */
+export function originLabel(origin: string | undefined): string {
+  if (!origin) return '本地';
+  if (origin === 'registry') return '市场';
+  if (origin.startsWith('repo:')) return '社区';
+  if (origin === 'zip') return 'ZIP';
+  return '本地';
 }
 
 export function joinPath(...parts: string[]): string {

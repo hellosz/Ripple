@@ -38,17 +38,15 @@ function Logo({ size }: { size: number }): ReactElement {
 
 export function Sidebar(): ReactElement {
   const store = useStore();
-  const { snapshot, auth, loggedIn, updates, view } = store;
+  const { snapshot, auth, loggedIn, updates, community, view } = store;
   const agents = snapshot?.agents ?? [];
   const projects = snapshot?.projects ?? [];
   const installs = snapshot?.installs ?? [];
   const [unusedOpen, setUnusedOpen] = useState(false);
 
   const emailPrefix = auth?.user?.email?.split('@')[0] ?? '';
-  const connLabel = loggedIn
-    ? `已登录 · ${auth?.user?.nickname ?? emailPrefix}`
-    : '本地模式 · 未登录';
-  const connSub = loggedIn ? hostOf(auth?.server ?? '') : '点击配置远程服务';
+  const nickname = auth?.user?.nickname ?? emailPrefix;
+  const communityUpdates = (community ?? []).filter((c) => c.installed && c.changed).length;
 
   // 有技能的 Agent 置顶：有安装记录，或（支持共享目录标准 + 共享存储 + 共享库非空）
   const sharedLibCount = Object.keys(snapshot?.skills ?? {}).length;
@@ -85,8 +83,10 @@ export function Sidebar(): ReactElement {
     );
   };
 
+  // 更新中心徽标 = 市场更新（需登录）+ 社区开源指纹变化
+  const updateBadge = (loggedIn ? updates.length : 0) + communityUpdates;
   const mainNav: {
-    key: 'local' | 'market' | 'updates';
+    key: 'local' | 'market' | 'community' | 'updates';
     icon: string;
     name: string;
     badge: number | null;
@@ -94,12 +94,13 @@ export function Sidebar(): ReactElement {
   }[] = [
     { key: 'local', icon: '▦', name: '本地技能', badge: null, locked: false },
     { key: 'market', icon: '◎', name: '技能市场', badge: null, locked: !loggedIn },
+    { key: 'community', icon: '⌂', name: '社区开源', badge: null, locked: false },
     {
       key: 'updates',
       icon: '↻',
       name: '更新中心',
-      badge: loggedIn && updates.length > 0 ? updates.length : null,
-      locked: !loggedIn,
+      badge: updateBadge > 0 ? updateBadge : null,
+      locked: false,
     },
   ];
 
@@ -154,16 +155,26 @@ export function Sidebar(): ReactElement {
         minHeight: 0,
       }}
     >
-      {/* 品牌区 + 连接状态卡 */}
-      <div style={{ position: 'relative', overflow: 'hidden', margin: '0 -10px 12px', padding: '44px 12px 12px' }}>
+      {/* 品牌区 + 连接状态卡：登录态=头图+昵称；未登录=整体置灰，仅 Logo + Ripple */}
+      <div
+        onClick={loggedIn ? undefined : () => store.setLoginOpen(true)}
+        style={{
+          position: 'relative',
+          overflow: 'hidden',
+          margin: '0 -10px 12px',
+          padding: '14px 12px 12px',
+          cursor: loggedIn ? undefined : 'pointer',
+        }}
+      >
         <div
           style={{
             position: 'absolute',
             inset: 0,
-            // 头图打包内置；加载异常时露出同色系渐变兜底
+            // 头图打包内置；加载异常时露出同色系渐变兜底；未登录整体灰化
             backgroundImage: `url(${sideBg}), ${HERO_BG}`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
+            filter: loggedIn ? undefined : 'grayscale(1) brightness(.8)',
           }}
         />
         <div
@@ -173,65 +184,87 @@ export function Sidebar(): ReactElement {
             background: 'linear-gradient(180deg,rgba(38,46,38,.45) 0%,rgba(38,46,38,.78) 100%)',
           }}
         />
-        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 9, padding: '0 4px 12px' }}>
-          <Logo size={24} />
-          <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 16, color: '#faf9f2' }}>
-            Ripple
-          </span>
-        </div>
         <div
-          className="rp-conn-card"
-          onClick={() => store.setLoginOpen(true)}
           style={{
             position: 'relative',
             display: 'flex',
             alignItems: 'center',
             gap: 8,
-            padding: '8px 10px',
-            borderRadius: 10,
-            border: '1px solid rgba(250,249,242,.28)',
-            background: 'rgba(250,249,242,.12)',
-            backdropFilter: 'blur(6px)',
-            cursor: 'pointer',
+            padding: loggedIn ? '0 4px 12px' : '4px 4px 6px',
           }}
         >
+          <Logo size={22} />
           <span
             style={{
-              width: 9,
-              height: 9,
-              borderRadius: '50%',
-              flex: 'none',
-              background: loggedIn ? '#7fa588' : 'rgba(75,80,64,.3)',
+              fontFamily: "'Space Grotesk',sans-serif",
+              fontWeight: 700,
+              fontSize: 16,
+              lineHeight: 1,
+              color: '#faf9f2',
             }}
-          />
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div
-              style={{
-                fontSize: 12,
-                fontWeight: 700,
-                color: '#faf9f2',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-            >
-              {connLabel}
-            </div>
-            <div
-              style={{
-                fontSize: 10.5,
-                color: 'rgba(250,249,242,.6)',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                fontFamily: MONO,
-              }}
-            >
-              {connSub}
-            </div>
-          </div>
-          <span style={{ color: 'rgba(250,249,242,.55)', fontSize: 11, flex: 'none' }}>⚙</span>
+          >
+            Ripple
+          </span>
         </div>
+        {loggedIn ? (
+          <div
+            className="rp-conn-card"
+            onClick={() => store.setLoginOpen(true)}
+            style={{
+              position: 'relative',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 9,
+              padding: '9px 11px',
+              borderRadius: 10,
+              border: '1px solid rgba(250,249,242,.28)',
+              background: 'rgba(250,249,242,.12)',
+              backdropFilter: 'blur(6px)',
+              cursor: 'pointer',
+            }}
+          >
+            <span style={{ width: 9, height: 9, borderRadius: '50%', flex: 'none', background: '#7fa588' }} />
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div
+                style={{
+                  fontSize: 14,
+                  fontWeight: 800,
+                  color: '#faf9f2',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {nickname}
+              </div>
+              <div
+                style={{
+                  fontSize: 10.5,
+                  color: 'rgba(250,249,242,.6)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  fontFamily: MONO,
+                  marginTop: 1,
+                }}
+              >
+                {hostOf(auth?.server ?? '')}
+              </div>
+            </div>
+            <span style={{ color: 'rgba(250,249,242,.55)', fontSize: 11, flex: 'none' }}>⚙</span>
+          </div>
+        ) : (
+          <div
+            style={{
+              position: 'relative',
+              fontSize: 10.5,
+              color: 'rgba(250,249,242,.55)',
+              padding: '0 4px 2px',
+            }}
+          >
+            本地模式 · 点击登录
+          </div>
+        )}
       </div>
 
       {/* 主导航 */}

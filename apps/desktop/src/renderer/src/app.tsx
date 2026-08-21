@@ -7,17 +7,22 @@ import { Toast } from './components/toast.js';
 import { UpdateBanner } from './components/update-banner.js';
 import { SkillListView } from './views/skill-list.js';
 import { MarketView } from './views/market.js';
+import { CommunityView } from './views/community.js';
 import { UpdatesView } from './views/updates.js';
 import { SettingsView } from './views/settings.js';
 import { GateView } from './views/gate.js';
 import { SyncModal } from './modals/sync-modal.js';
 import { HistoryModal } from './modals/history-modal.js';
 import { LoginModal } from './modals/login-modal.js';
+import { SkillDetailModal } from './modals/skill-detail-modal.js';
+import { MarketDetailModal } from './modals/market-detail-modal.js';
 
 function Content(): ReactElement {
   const { view, loggedIn } = useStore();
   if (view.kind === 'market') return loggedIn ? <MarketView /> : <GateView kind="market" />;
-  if (view.kind === 'updates') return loggedIn ? <UpdatesView /> : <GateView kind="updates" />;
+  if (view.kind === 'community') return <CommunityView />;
+  // 更新中心不再整体门控：社区开源更新无需登录，市场节内单独提示登录
+  if (view.kind === 'updates') return <UpdatesView />;
   if (view.kind === 'settings') return <SettingsView />;
   return <SkillListView />;
 }
@@ -46,6 +51,8 @@ function Shell(): ReactElement {
       </div>
       <SyncModal />
       <HistoryModal />
+      <SkillDetailModal />
+      <MarketDetailModal />
       {store.loginOpen && <LoginModal />}
       <Toast />
     </div>

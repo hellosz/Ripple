@@ -99,6 +99,9 @@ importers:
       '@ripple/hub':
         specifier: workspace:*
         version: link:../../packages/hub
+      '@ripple/skill-core':
+        specifier: workspace:*
+        version: link:../../packages/skill-core
       '@types/react':
         specifier: ^19.0.0
         version: 19.2.14
@@ -204,7 +207,7 @@ importers:
         version: 11.11.1
       next:
         specifier: ^15.3.0
-        version: 15.5.12(@babel/core@7.29.7)(@playwright/test@1.58.2)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+        version: 15.5.12(@playwright/test@1.58.2)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       react:
         specifier: ^19.0.0
         version: 19.2.4
@@ -8863,7 +8866,7 @@ snapshots:
 
   natural-compare@1.4.0: {}
 
-  next@15.5.12(@babel/core@7.29.7)(@playwright/test@1.58.2)(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
+  next@15.5.12(@playwright/test@1.58.2)(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
     dependencies:
       '@next/env': 15.5.12
       '@swc/helpers': 0.5.15
@@ -8871,7 +8874,7 @@ snapshots:
       postcss: 8.4.31
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
-      styled-jsx: 5.1.6(@babel/core@7.29.7)(react@19.2.4)
+      styled-jsx: 5.1.6(react@19.2.4)
     optionalDependencies:
       '@next/swc-darwin-arm64': 15.5.12
       '@next/swc-darwin-x64': 15.5.12
@@ -9594,12 +9597,10 @@ snapshots:
     dependencies:
       inline-style-parser: 0.2.7
 
-  styled-jsx@5.1.6(@babel/core@7.29.7)(react@19.2.4):
+  styled-jsx@5.1.6(react@19.2.4):
     dependencies:
       client-only: 0.0.1
       react: 19.2.4
-    optionalDependencies:
-      '@babel/core': 7.29.7
 
   sucrase@3.35.1:
     dependencies:

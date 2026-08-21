@@ -1,9 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { Collection, SkillListItem } from '@ripple/contract';
+import type { CommunitySkill } from '@ripple/hub';
 import type { AuthState, HubSnapshot, UpdateEntry } from '../../shared/api.js';
 import { ripple } from './ripple-api.js';
 
-export type ViewKind = 'local' | 'agent' | 'project' | 'market' | 'updates' | 'settings';
+export type ViewKind = 'local' | 'agent' | 'project' | 'community' | 'market' | 'updates' | 'settings';
 
 export interface View {
   kind: ViewKind;
@@ -46,6 +47,9 @@ export interface Store {
   updates: UpdateEntry[];
   marketItems: SkillListItem[] | null;
   collections: Collection[] | null;
+  /** 社区开源快照（进入本地/社区视图时后台加载；null=尚未加载） */
+  community: CommunitySkill[] | null;
+  communityError: string | null;
 
   view: View;
   setView: (v: View) => void;
@@ -66,6 +70,12 @@ export interface Store {
 
   historyFor: string | null;
   setHistoryFor: (skill: string | null) => void;
+  /** 本地 Skill 详情弹窗（文件树 + 内容/编辑） */
+  skillDetail: string | null;
+  setSkillDetail: (skill: string | null) => void;
+  /** 市场 Skill 详情弹窗 */
+  marketDetail: SkillListItem | null;
+  setMarketDetail: (item: SkillListItem | null) => void;
   loginOpen: boolean;
   setLoginOpen: (open: boolean) => void;
 
@@ -82,6 +92,8 @@ export interface Store {
   refreshUpdates: () => Promise<void>;
   loadMarket: () => Promise<void>;
   loadCollections: () => Promise<void>;
+  /** 拉取社区开源快照（force 重新加载并显示骨架；失败静默存入 communityError） */
+  loadCommunity: (force?: boolean) => Promise<void>;
   /** 执行操作并把错误转为 toast */
   run: (fn: () => Promise<void>) => void;
 }
@@ -101,6 +113,8 @@ export function useAppStore(): Store {
   const [updates, setUpdates] = useState<UpdateEntry[]>([]);
   const [marketItems, setMarketItems] = useState<SkillListItem[] | null>(null);
   const [collections, setCollections] = useState<Collection[] | null>(null);
+  const [community, setCommunity] = useState<CommunitySkill[] | null>(null);
+  const [communityError, setCommunityError] = useState<string | null>(null);
 
   const [view, setViewRaw] = useState<View>({ kind: 'local' });
   const [scope, setScope] = useState<ScopeFilter>('all');
@@ -110,6 +124,8 @@ export function useAppStore(): Store {
 
   const [sync, setSync] = useState<SyncModalState | null>(null);
   const [historyFor, setHistoryFor] = useState<string | null>(null);
+  const [skillDetail, setSkillDetail] = useState<string | null>(null);
+  const [marketDetail, setMarketDetail] = useState<SkillListItem | null>(null);
   const [loginOpen, setLoginOpen] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
   const [lastScan, setLastScan] = useState<Date | null>(null);
@@ -177,6 +193,22 @@ export function useAppStore(): Store {
       toast(`加载合集失败：${errText(err)}`);
     }
   }, [toast]);
+
+  const communityBusy = useRef(false);
+  const loadCommunity = useCallback(async (force = false): Promise<void> => {
+    if (communityBusy.current) return;
+    communityBusy.current = true;
+    if (force) setCommunity(null);
+    setCommunityError(null);
+    try {
+      setCommunity(await ripple.community());
+    } catch (err) {
+      // 失败静默：本地视图不打扰；社区视图读取 communityError 展示重试
+      setCommunityError(errText(err));
+    } finally {
+      communityBusy.current = false;
+    }
+  }, []);
 
   const run = useCallback(
     (fn: () => Promise<void>): void => {
@@ -281,6 +313,11 @@ export function useAppStore(): Store {
   useEffect(() => {
     if (view.kind === 'market' && loggedIn && marketItems === null) void loadMarket();
   }, [view.kind, loggedIn, marketItems, loadMarket]);
+  // ---- 进入本地 / 社区 / 更新中心时后台加载社区快照（一次，失败静默）----
+  useEffect(() => {
+    const wants = view.kind === 'local' || view.kind === 'community' || view.kind === 'updates';
+    if (wants && community === null && communityError === null) void loadCommunity();
+  }, [view.kind, community, communityError, loadCommunity]);
   useEffect(() => {
     if (view.kind === 'market' && marketTab === 'collections' && loggedIn && collections === null) {
       void loadCollections();
@@ -294,6 +331,8 @@ export function useAppStore(): Store {
     updates,
     marketItems,
     collections,
+    community,
+    communityError,
     view,
     setView,
     scope,
@@ -311,6 +350,10 @@ export function useAppStore(): Store {
     openRegistrySync,
     historyFor,
     setHistoryFor,
+    skillDetail,
+    setSkillDetail,
+    marketDetail,
+    setMarketDetail,
     loginOpen,
     setLoginOpen,
     toastMsg,
@@ -325,6 +368,7 @@ export function useAppStore(): Store {
     refreshUpdates,
     loadMarket,
     loadCollections,
+    loadCommunity,
     run,
   };
 }

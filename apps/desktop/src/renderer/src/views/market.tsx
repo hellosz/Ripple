@@ -1,8 +1,8 @@
 import type { CSSProperties, ReactElement } from 'react';
 import type { SkillListItem } from '@ripple/contract';
-import { ripple } from '../ripple-api.js';
 import { useStore } from '../store.js';
-import { GREEN, INK, PRIMARY, cardStyle, chipStyle, dim, fmtCount, gradBtn } from '../ui.js';
+import { AMBER, GREEN, INK, PRIMARY, cardStyle, chipStyle, cmpVer, dim, fmtCount, gradBtn } from '../ui.js';
+import { ripple } from '../ripple-api.js';
 
 const FALLBACK_GRAD = 'linear-gradient(90deg,#93a86b,#b9c69a)';
 
@@ -15,12 +15,20 @@ export function MarketView(): ReactElement {
   const { snapshot, marketItems, collections, marketTab, query } = store;
   const installedSkills = new Set((snapshot?.installs ?? []).map((i) => i.skill));
 
+  /** 本地状态：未装 / 已装最新 / 已装但远端有新版（对比 SSOT 版本与市场版本） */
+  const localState = (item: SkillListItem): { installed: boolean; hasUpdate: boolean } => {
+    const localVer = snapshot?.skills[item.name]?.version ?? null;
+    const installed = installedSkills.has(item.name) || item.name in (snapshot?.skills ?? {});
+    const hasUpdate = installed && localVer !== null && cmpVer(localVer, item.version) < 0;
+    return { installed, hasUpdate };
+  };
+
   const installBtn = (item: SkillListItem, fixedWidth: boolean): ReactElement => {
-    const installed = installedSkills.has(item.name);
+    const { installed, hasUpdate } = localState(item);
     const style: CSSProperties = installed
       ? {
-          border: '1px solid rgba(107,127,67,.4)',
-          color: PRIMARY,
+          border: `1px solid ${hasUpdate ? 'rgba(169,138,91,.55)' : 'rgba(107,127,67,.4)'}`,
+          color: hasUpdate ? AMBER : PRIMARY,
           fontWeight: 700,
           borderRadius: 8,
           cursor: 'pointer',
@@ -30,7 +38,10 @@ export function MarketView(): ReactElement {
     return (
       <span
         className={installed ? 'rp-btn-outline' : 'rp-btn-grad'}
-        onClick={() => store.openRegistrySync(item.name)}
+        onClick={(e) => {
+          e.stopPropagation();
+          store.openRegistrySync(item.name);
+        }}
         style={{
           ...style,
           fontSize: fixedWidth ? 11.5 : 12,
@@ -77,49 +88,72 @@ export function MarketView(): ReactElement {
       {/* 浏览网格 */}
       {marketTab === 'browse' && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          {items.map((m) => (
-            <div
-              key={m.id}
-              style={{ ...cardStyle, padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 8 }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontWeight: 700, fontSize: 14, color: INK, whiteSpace: 'nowrap' }}>
-                  {m.display_name}
-                </span>
-                <span
-                  style={{
-                    fontSize: 10.5,
-                    padding: '2px 8px',
-                    borderRadius: 999,
-                    background: 'rgba(147,168,107,.1)',
-                    color: PRIMARY,
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {m.category ?? '技能'}
-                </span>
-                <span style={{ flex: 1 }} />
-                <span
-                  style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 11.5, color: PRIMARY, whiteSpace: 'nowrap' }}
-                >
-                  ♨ {m.stats.heat}
-                </span>
+          {items.map((m) => {
+            const { installed, hasUpdate } = localState(m);
+            // 底部 3px 进度条：未装无条；已装 100% 安装态色；有远端新版 100% 待同步色（琥珀）
+            const barColor = installed
+              ? hasUpdate
+                ? AMBER
+                : 'var(--rp-primary-soft)'
+              : 'transparent';
+            return (
+              <div
+                key={m.id}
+                onClick={() => store.setMarketDetail(m)}
+                title={
+                  installed
+                    ? hasUpdate
+                      ? `已安装 · 远端有新版 v${m.version}`
+                      : '已安装 · 与市场一致'
+                    : undefined
+                }
+                style={{
+                  ...cardStyle,
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  cursor: 'pointer',
+                }}
+              >
+                <div style={{ padding: '16px 18px 14px', display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontWeight: 700, fontSize: 14, color: INK, whiteSpace: 'nowrap' }}>
+                      {m.display_name}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 10.5,
+                        padding: '2px 8px',
+                        borderRadius: 999,
+                        background: 'rgba(147,168,107,.1)',
+                        color: PRIMARY,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {m.category ?? '技能'}
+                    </span>
+                    <span style={{ flex: 1 }} />
+                    <span
+                      style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 11.5, color: PRIMARY, whiteSpace: 'nowrap' }}
+                    >
+                      ♨ {m.stats.heat}
+                    </span>
+                  </div>
+                  <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.7, color: dim(0.6), minHeight: 34 }}>
+                    {m.description}
+                  </p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, color: dim(0.45) }}>
+                    <span>
+                      {authorName(m)} · v{m.version}
+                    </span>
+                    <span style={{ flex: 1 }} />
+                    {installBtn(m, false)}
+                  </div>
+                </div>
+                <div style={{ height: 3, flex: 'none', background: barColor }} />
               </div>
-              <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.7, color: dim(0.6), minHeight: 34 }}>
-                {m.description}
-              </p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, color: dim(0.45) }}>
-                <span>
-                  {authorName(m)} · v{m.version}
-                </span>
-                <span style={{ flex: 1 }} />
-                {installedSkills.has(m.name) && (
-                  <span style={{ color: GREEN, fontWeight: 700, whiteSpace: 'nowrap' }}>✓ 已安装</span>
-                )}
-                {installBtn(m, false)}
-              </div>
-            </div>
-          ))}
+            );
+          })}
           {items.length === 0 && (
             <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '80px 0', color: dim(0.45) }}>
               没有匹配的技能

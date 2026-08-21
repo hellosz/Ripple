@@ -5,7 +5,8 @@ import { INK, MONO, dim, gradBtn } from '../ui.js';
 
 export function Toolbar(): ReactElement {
   const store = useStore();
-  const { snapshot, view, loggedIn, updates } = store;
+  const { snapshot, view, loggedIn, updates, community } = store;
+  const communityCount = (community ?? []).filter((c) => c.installed && c.changed).length;
 
   let title = '本地技能';
   let sub = '跨 Agent 与项目统一管理';
@@ -24,9 +25,12 @@ export function Toolbar(): ReactElement {
   } else if (view.kind === 'market') {
     title = '技能市场';
     sub = '来自 Ripple 社区';
+  } else if (view.kind === 'community') {
+    title = '社区开源';
+    sub = 'GitHub / GitLab 技能仓库 · 无需登录';
   } else if (view.kind === 'updates') {
     title = '更新中心';
-    sub = `${updates.length} 个技能可更新`;
+    sub = `市场 ${loggedIn ? updates.length : '—'} · 社区 ${communityCount} 个可更新`;
   } else if (view.kind === 'settings') {
     title = '设置';
     sub =
