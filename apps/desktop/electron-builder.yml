@@ -1,6 +1,5 @@
 appId: dev.ripple.desktop
 productName: Ripple
-executableName: ripple-desktop
 directories:
   output: release
 files:
@@ -10,6 +9,8 @@ publish:
   owner: hellosz
   repo: Ripple
 linux:
+  # 仅 Linux 需要覆盖可执行名（包名 @ripple/desktop 不能作文件名）；macOS 保持 Ripple.app
+  executableName: ripple-desktop
   artifactName: ripple-desktop_${version}_${arch}.${ext}
   target:
     - AppImage
