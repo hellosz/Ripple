@@ -1,5 +1,6 @@
 appId: dev.ripple.desktop
 productName: Ripple
+executableName: ripple-desktop
 directories:
   output: release
 files:
@@ -9,6 +10,7 @@ publish:
   owner: hellosz
   repo: Ripple
 linux:
+  artifactName: ripple-desktop_${version}_${arch}.${ext}
   target:
     - AppImage
     - deb

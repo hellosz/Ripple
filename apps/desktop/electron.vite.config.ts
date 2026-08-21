@@ -1,17 +1,28 @@
-import { defineConfig, externalizeDepsPlugin } from 'electron-vite';
+import { defineConfig } from 'electron-vite';
 import react from '@vitejs/plugin-react';
 
+// 主进程/preload 全量打包（含 workspace 包与 electron-updater），
+// 产物自包含：electron-builder 只需打 out/**，绕开 pnpm symlink 问题。
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin({ exclude: ['@ripple/hub', '@ripple/api-client', '@ripple/contract', '@ripple/skill-core'] })],
     build: {
-      rollupOptions: { input: 'src/main/index.ts' },
+      rollupOptions: {
+        input: 'src/main/index.ts',
+        external: ['electron'],
+      },
     },
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
     build: {
-      rollupOptions: { input: 'src/preload/index.ts' },
+      rollupOptions: {
+        input: 'src/preload/index.ts',
+        external: ['electron'],
+        output: {
+          // sandbox:false + contextBridge：cjs 形态最稳
+          format: 'cjs',
+          entryFileNames: '[name].js',
+        },
+      },
     },
   },
   renderer: {
