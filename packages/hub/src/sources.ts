@@ -40,11 +40,34 @@ export interface RepoSkill {
   root: string;
 }
 
-export function parseRepoSpec(spec: string): Pick<SourceRepo, 'owner' | 'repo' | 'branch' | 'subdir'> {
-  // 形如 owner/repo[#branch][:subdir]
-  const match = /^([^/#:]+)\/([^/#:]+)(?:#([^:]+))?(?::(.+))?$/.exec(spec.trim());
-  if (!match) throw new Error(`Invalid repo spec: ${spec}（期望 owner/repo[#branch][:subdir]）`);
+export function parseRepoSpec(
+  spec: string,
+): Pick<SourceRepo, 'owner' | 'repo' | 'branch' | 'subdir' | 'provider' | 'host'> {
+  const trimmed = spec.trim();
+  // 完整 URL 形式（私服 GitLab public 仓库）：https://host/owner/repo[#branch][:subdir]
+  const urlMatch = /^https?:\/\/([^/]+)\/([^/#:]+)\/([^/#:]+?)(?:\.git)?(?:#([^:]+))?(?::(.+))?$/.exec(
+    trimmed,
+  );
+  if (urlMatch) {
+    const host = urlMatch[1]!;
+    return {
+      host,
+      provider: host === 'github.com' ? 'github' : 'gitlab',
+      owner: urlMatch[2]!,
+      repo: urlMatch[3]!,
+      branch: urlMatch[4] ?? 'main',
+      subdir: urlMatch[5] ?? '',
+    };
+  }
+  // 简写形式（GitHub）：owner/repo[#branch][:subdir]
+  const match = /^([^/#:]+)\/([^/#:]+)(?:#([^:]+))?(?::(.+))?$/.exec(trimmed);
+  if (!match) {
+    throw new Error(
+      `Invalid repo spec: ${spec}（期望 owner/repo[#branch][:subdir] 或 https://host/owner/repo[#branch][:subdir]）`,
+    );
+  }
   return {
+    provider: 'github',
     owner: match[1]!,
     repo: match[2]!,
     branch: match[3] ?? 'main',
@@ -52,11 +75,21 @@ export function parseRepoSpec(spec: string): Pick<SourceRepo, 'owner' | 'repo' |
   };
 }
 
+export function tarballUrl(
+  repo: Pick<SourceRepo, 'owner' | 'repo' | 'branch' | 'provider' | 'host'>,
+): string {
+  if (repo.provider === 'gitlab' && repo.host) {
+    // GitLab（含私服，public 仓库无需鉴权）
+    return `https://${repo.host}/${repo.owner}/${repo.repo}/-/archive/${repo.branch}/${repo.repo}-${repo.branch}.tar.gz`;
+  }
+  return `https://codeload.github.com/${repo.owner}/${repo.repo}/tar.gz/${repo.branch}`;
+}
+
 export async function fetchRepoTarball(
-  repo: Pick<SourceRepo, 'owner' | 'repo' | 'branch'>,
+  repo: Pick<SourceRepo, 'owner' | 'repo' | 'branch' | 'provider' | 'host'>,
   fetchImpl: typeof fetch = fetch,
 ): Promise<Uint8Array> {
-  const url = `https://codeload.github.com/${repo.owner}/${repo.repo}/tar.gz/${repo.branch}`;
+  const url = tarballUrl(repo);
   const response = await fetchImpl(url);
   if (!response.ok) throw new Error(`Fetch ${repo.owner}/${repo.repo} failed: HTTP ${response.status}`);
   return new Uint8Array(await response.arrayBuffer());

@@ -13,6 +13,8 @@ const rpcMethods = [
   'snapshot',
   'scan',
   'adoptAll',
+  'addPlacement',
+  'backupAgents',
   'sync',
   'setEnabled',
   'uninstall',

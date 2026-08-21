@@ -5,6 +5,7 @@ import type {
   HistoryEntry,
   InstallRecord,
   InstallTarget,
+  OpEntry,
   ProjectRecord,
   RepoSkill,
   ScanIssue,
@@ -32,8 +33,10 @@ export interface HubSnapshot {
     storage_dir: string;
     backups_dir: string;
   };
-  /** 每个技能 SSOT 内的当前版本与描述 */
+  /** 每个技能 SSOT 内的当前版本与描述（含未纳管但位于共享库中的技能） */
   skills: Record<string, { version: string | null; description: string | null }>;
+  /** 全局操作日志（倒序） */
+  oplog: OpEntry[];
 }
 
 export interface AuthState {
@@ -56,6 +59,10 @@ export interface DesktopApi {
   scan(): Promise<ScanIssue[]>;
   /** 接管 Agent/项目目录中未纳管的既有技能 */
   adoptAll(): Promise<{ adopted: number; skipped: number }>;
+  /** Agent 粒度补齐：把 SSOT 已有技能补装到指定目标（target.dedicated=true 强制专属） */
+  addPlacement(skill: string, target: InstallTarget): Promise<InstallRecord>;
+  /** 按 Agent 批量备份其全部技能 */
+  backupAgents(agentIds: string[]): Promise<{ count: number }>;
   sync(skill: string, targets: InstallTarget[]): Promise<InstallRecord[]>;
   setEnabled(skill: string, target: InstallTarget, enabled: boolean): Promise<InstallRecord>;
   uninstall(skill: string, target?: InstallTarget): Promise<void>;

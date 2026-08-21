@@ -4,19 +4,21 @@ import type { AgentAdapter, DetectedAgent } from './types.js';
 
 /** 声明式适配器注册表：新增 Agent 只需添加条目 */
 export const AGENT_ADAPTERS: AgentAdapter[] = [
-  { id: 'claude-code', name: 'Claude Code', globalRelPath: '.claude/skills', projectRelPath: '.claude/skills' },
-  { id: 'codex', name: 'Codex', globalRelPath: '.codex/skills', projectRelPath: '.codex/skills' },
-  { id: 'opencode', name: 'OpenCode', globalRelPath: '.opencode/skill', projectRelPath: '.opencode/skill' },
-  { id: 'cursor', name: 'Cursor', globalRelPath: '.cursor/skills', projectRelPath: '.cursor/skills' },
-  { id: 'hermes', name: 'Hermes', globalRelPath: '.hermes/skills', projectRelPath: '.hermes/skills' },
+  // 固定展示顺序；sharedDirSupport 依据 agentskills.io 生态调研（Codex 以共享目录为主目录，OpenCode 原生支持）
+  { id: 'claude-code', name: 'Claude Code', globalRelPath: '.claude/skills', projectRelPath: '.claude/skills', sharedDirSupport: false },
+  { id: 'codex', name: 'Codex', globalRelPath: '.codex/skills', projectRelPath: '.codex/skills', sharedDirSupport: true },
+  { id: 'opencode', name: 'OpenCode', globalRelPath: '.opencode/skill', projectRelPath: '.opencode/skill', sharedDirSupport: true },
+  { id: 'hermes', name: 'Hermes', globalRelPath: '.hermes/skills', projectRelPath: '.hermes/skills', sharedDirSupport: false },
+  { id: 'openclaw', name: 'OpenClaw', globalRelPath: '.openclaw/skills', projectRelPath: '.openclaw/skills', sharedDirSupport: false },
+  { id: 'pi', name: 'Pi', globalRelPath: '.pi/skills', projectRelPath: '.pi/skills', sharedDirSupport: false },
+  { id: 'cursor', name: 'Cursor', globalRelPath: '.cursor/skills', projectRelPath: '.cursor/skills', sharedDirSupport: false },
   {
     id: 'deepseek-harness',
     name: 'DeepSeek Harness',
     globalRelPath: '.deepseek/harness/skills',
     projectRelPath: '.deepseek/harness/skills',
+    sharedDirSupport: false,
   },
-  { id: 'openclaw', name: 'OpenClaw', globalRelPath: '.openclaw/skills', projectRelPath: '.openclaw/skills' },
-  { id: 'pi', name: 'Pi', globalRelPath: '.pi/skills', projectRelPath: '.pi/skills' },
 ];
 
 export function getAdapter(id: string): AgentAdapter | undefined {

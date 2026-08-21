@@ -141,6 +141,8 @@ const handlers: Record<string, RpcHandler> = {
     const { adopted, skipped } = services.hub.adoptAll();
     return { adopted: adopted.length, skipped: skipped.length };
   },
+  addPlacement: (skill: string, target: InstallTarget) => services.hub.addPlacement(skill, target),
+  backupAgents: (agentIds: string[]) => ({ count: services.hub.backupAgents(agentIds).length }),
   sync: (skill: string, targets: InstallTarget[]) => services.hub.sync(skill, targets),
   setEnabled: (skill: string, target: InstallTarget, enabled: boolean) =>
     services.hub.setEnabled(skill, target, enabled),

@@ -6,7 +6,7 @@ import type { HubState } from './types.js';
 export function defaultState(): HubState {
   return {
     schema_version: 1,
-    storage_location: 'builtin',
+    storage_location: 'shared',
     dist_mode: 'symlink',
     default_agent: 'claude-code',
     installs: [],
@@ -24,6 +24,8 @@ export function defaultState(): HubState {
     ],
     history: {},
     backups: [],
+    owned: {},
+    oplog: [],
   };
 }
 

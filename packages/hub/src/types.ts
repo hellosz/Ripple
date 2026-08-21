@@ -1,7 +1,7 @@
 export type StorageLocation = 'builtin' | 'shared';
 export type DistMode = 'symlink' | 'copy';
 /** 实际落盘方式（symlink 失败降级 copy 会被记录） */
-export type EffectiveMode = 'symlink' | 'junction' | 'copy';
+export type EffectiveMode = 'symlink' | 'junction' | 'copy' | 'shared';
 
 export interface InstallRecord {
   skill: string;
@@ -29,6 +29,10 @@ export interface SourceRepo {
   subdir: string;
   note: string;
   builtin: boolean;
+  /** github（codeload）或 gitlab（含私服，public 仓库 /-/archive） */
+  provider?: 'github' | 'gitlab';
+  /** gitlab 私服主机名（github 省略） */
+  host?: string;
 }
 
 export interface HistoryEntry {
@@ -58,12 +62,26 @@ export interface HubState {
   sources: SourceRepo[];
   history: Record<string, HistoryEntry[]>;
   backups: BackupRecord[];
+  /** hub 写入 SSOT 的技能（所有权）；卸载时仅 owned 才删除 SSOT 内容 */
+  owned: Record<string, true>;
+  /** 全局操作日志（最近 500 条，倒序） */
+  oplog: OpEntry[];
 }
 
 export interface InstallTarget {
   agent: string;
   /** 缺省为全局；项目作用域传项目目录绝对路径 */
   projectDir?: string;
+  /** Agent 粒度个性化：强制专属分发（即使该 Agent 支持共享目录标准） */
+  dedicated?: boolean;
+}
+
+/** 全局操作日志条目 */
+export interface OpEntry {
+  at: string;
+  action: string;
+  target: string;
+  detail: string;
 }
 
 export interface AgentAdapter {
@@ -73,6 +91,8 @@ export interface AgentAdapter {
   globalRelPath: string;
   /** 项目内技能目录（相对项目根） */
   projectRelPath: string;
+  /** 是否原生支持 agentskills.io 共享目录 ~/.agents/skills */
+  sharedDirSupport: boolean;
 }
 
 export interface DetectedAgent extends AgentAdapter {

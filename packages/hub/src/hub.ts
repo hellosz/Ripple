@@ -78,6 +78,12 @@ export class RippleHub {
     return this.now().toISOString();
   }
 
+  /** 全局操作日志（倒序，上限 500 条） */
+  logOp(action: string, target: string, detail: string): void {
+    this.state.oplog.unshift({ at: this.stamp(), action, target, detail });
+    if (this.state.oplog.length > 500) this.state.oplog.length = 500;
+  }
+
   addHistory(skill: string, entry: Omit<HistoryEntry, 'at'>): void {
     const list = this.state.history[skill] ?? [];
     list.unshift({ ...entry, at: this.stamp() });
@@ -88,6 +94,7 @@ export class RippleHub {
 
   writeSkillContent(payload: SkillPayload): void {
     const dir = this.skillDir(payload.meta.name);
+    this.state.owned[payload.meta.name] = true;
     removePath(dir);
     for (const [rel, data] of Object.entries(payload.files)) {
       const full = join(dir, rel);
@@ -128,7 +135,25 @@ export class RippleHub {
     const src = this.skillDir(skill);
     if (!existsSync(src)) throw new Error(`Skill '${skill}' not in central storage`);
     const version = this.installedVersion(skill) ?? '0.0.0';
-    const mode = distribute(src, this.targetDirFor(target, skill), this.state.dist_mode, this.platform);
+    const adapter = getAdapter(target.agent);
+    if (!adapter) throw new Error(`Unknown agent: ${target.agent}`);
+    // 共享目录标准：存储位于 ~/.agents/skills 且 Agent 原生支持时零分发（除非显式 dedicated 个性化）
+    let mode: import('./types.js').EffectiveMode;
+    if (
+      !target.dedicated &&
+      adapter.sharedDirSupport &&
+      this.state.storage_location === 'shared' &&
+      !target.projectDir
+    ) {
+      // 清理此前的专属分发（仅 hub 创建的链接，copy 形态可能是用户原有内容不动）
+      const prev = this.findInstall(skill, target);
+      if (prev && (prev.mode === 'symlink' || prev.mode === 'junction')) {
+        removePath(this.targetDirFor(target, skill));
+      }
+      mode = 'shared';
+    } else {
+      mode = distribute(src, this.targetDirFor(target, skill), this.state.dist_mode, this.platform);
+    }
     let record = this.findInstall(skill, target);
     if (record) {
       record.version = version;
@@ -157,13 +182,55 @@ export class RippleHub {
     this.writeSkillContent(payload);
     const resolved = targets.length > 0 ? targets : [{ agent: this.state.default_agent }];
     const records = resolved.map((t) => this.distributeTo(name, t));
+    const detail = records
+      .map((r) => `${r.agent}${r.scope === 'global' ? '' : ` · ${basename(r.scope)}`}`)
+      .join('、');
     this.addHistory(name, {
       action: this.state.history[name]?.length ? 'update' : 'install',
       version: `v${payload.meta.version}`,
-      detail: records
-        .map((r) => `${r.agent}${r.scope === 'global' ? '' : ` · ${basename(r.scope)}`}`)
-        .join('、'),
+      detail,
     });
+    this.logOp('安装', name, `v${payload.meta.version} → ${detail}`);
+    this.save();
+    return records;
+  }
+
+  /** Agent 粒度补齐：把 SSOT 已有技能补装到指定目标（不改内容，无需备份） */
+  addPlacement(skill: string, target: InstallTarget): InstallRecord {
+    const record = this.distributeTo(skill, target);
+    this.addHistory(skill, {
+      action: 'install',
+      version: `v${record.version}`,
+      detail: `补齐到 ${target.agent}${target.projectDir ? ` · ${basename(target.projectDir)}` : ''}${record.mode === 'shared' ? '（通用）' : '（专属）'}`,
+    });
+    this.logOp('补齐', skill, `${target.agent} · ${record.mode === 'shared' ? '通用' : `专属(${record.mode})`}`);
+    this.save();
+    return record;
+  }
+
+  /** 按 Agent 批量备份：对指定 Agent 集合安装的全部技能（去重）逐一快照 */
+  backupAgents(agentIds: string[]): BackupRecord[] {
+    const skills = new Set<string>();
+    for (const install of this.state.installs) {
+      if (agentIds.includes(install.agent)) skills.add(install.skill);
+    }
+    // 支持共享标准的 Agent：共享存储中的全部技能视同已安装
+    if (this.state.storage_location === 'shared') {
+      const sharedAgents = agentIds.filter((id) => getAdapter(id)?.sharedDirSupport);
+      if (sharedAgents.length > 0 && existsSync(this.storageDir())) {
+        for (const entry of readdirSync(this.storageDir(), { withFileTypes: true })) {
+          if (entry.isDirectory() && existsSync(join(this.storageDir(), entry.name, 'SKILL.md'))) {
+            skills.add(entry.name);
+          }
+        }
+      }
+    }
+    const records: BackupRecord[] = [];
+    for (const skill of skills) {
+      const record = this.createBackup(skill, `手动备份 · ${agentIds.join('、')}`);
+      if (record) records.push(record);
+    }
+    this.logOp('批量备份', agentIds.join('、'), `${records.length} 个技能已快照`);
     this.save();
     return records;
   }
@@ -186,11 +253,13 @@ export class RippleHub {
       version: `v${this.installedVersion(skill) ?? '?'}`,
       detail: `${targets.length} 个目标 · 已自动备份`,
     });
+    this.logOp('同步', skill, `${targets.length} 个目标（移除 ${removed.length} 处）`);
     this.save();
     return records;
   }
 
   private removeDistribution(record: InstallRecord): void {
+    if (record.mode === 'shared') return; // 共享标准引入：无专属落盘可移除
     const target: InstallTarget = {
       agent: record.agent,
       ...(record.scope === 'global' ? {} : { projectDir: record.scope }),
@@ -201,6 +270,9 @@ export class RippleHub {
   setEnabled(skill: string, target: InstallTarget, enabled: boolean): InstallRecord {
     const record = this.findInstall(skill, target);
     if (!record) throw new Error(`No install of '${skill}' at ${target.agent}/${this.scopeOf(target)}`);
+    if (record.mode === 'shared') {
+      throw new Error('通用（共享标准）引入的安装无需启停；如需独立控制请改为专属安装');
+    }
     if (enabled) {
       this.distributeTo(skill, target);
       record.enabled = true;
@@ -208,6 +280,7 @@ export class RippleHub {
       this.removeDistribution(record);
       record.enabled = false;
     }
+    this.logOp(enabled ? '启用' : '禁用', skill, `${target.agent}${target.projectDir ? ` · ${basename(target.projectDir)}` : ''}`);
     this.save();
     return record;
   }
@@ -222,14 +295,17 @@ export class RippleHub {
     this.createBackup(skill, '卸载前自动备份');
     for (const record of affected) this.removeDistribution(record);
     this.state.installs = this.state.installs.filter((i) => !affected.includes(i));
-    if (!this.state.installs.some((i) => i.skill === skill)) {
+    // 最后一处卸载：仅删除 hub 自己写入的 SSOT 内容（共享目录中他人内容不动）
+    if (!this.state.installs.some((i) => i.skill === skill) && this.state.owned[skill]) {
       removePath(this.skillDir(skill));
+      delete this.state.owned[skill];
     }
     this.addHistory(skill, {
       action: 'uninstall',
       version: `v${affected[0]?.version ?? '?'}`,
       detail: `${affected.length} 处安装`,
     });
+    this.logOp('卸载', skill, `${affected.length} 处安装 · 备份已保留`);
     this.save();
   }
 
@@ -295,6 +371,7 @@ export class RippleHub {
       version: record.version,
       detail: '从备份恢复 · 全部安装位置',
     });
+    this.logOp('回退', record.skill, `${record.version} · 从备份恢复`);
     this.save();
     return record;
   }
@@ -304,6 +381,7 @@ export class RippleHub {
     if (!record) throw new Error(`Backup '${id}' not found`);
     removePath(record.file);
     this.state.backups = this.state.backups.filter((b) => b.id !== id);
+    this.logOp('删除备份', record.skill, `${record.version} · ${record.reason}`);
     this.save();
   }
 
@@ -334,11 +412,13 @@ export class RippleHub {
     if (oldLocation === 'builtin' && existsSync(oldDir) && oldDir !== newDir) {
       removePath(oldDir);
     }
+    this.logOp('存储位置', location === 'shared' ? '~/.agents/skills' : '~/.ripple/skills', `${managed.size} 个纳管技能已迁移`);
     this.save();
   }
 
   setDistMode(mode: DistMode): void {
     this.state.dist_mode = mode;
+    this.logOp('分发方式', mode, '全部启用分发已重建');
     for (const install of this.state.installs.filter((i) => i.enabled)) {
       this.distributeTo(install.skill, {
         agent: install.agent,
@@ -353,6 +433,7 @@ export class RippleHub {
   addProject(path: string): void {
     if (this.state.projects.some((p) => p.path === path)) return;
     this.state.projects.push({ path, name: basename(path), added_at: this.stamp() });
+    this.logOp('添加项目', basename(path), path);
     this.save();
   }
 
@@ -472,7 +553,10 @@ export class RippleHub {
         detail: `接管既有安装 · ${entry.agent}${entry.scope === 'global' ? '' : ` · ${basename(entry.scope)}`}`,
       });
     }
-    if (adopted.length > 0) this.save();
+    if (adopted.length > 0) {
+      this.logOp('接管', `${adopted.length} 个既有技能`, adopted.map((a) => a.skill).slice(0, 8).join('、') + (adopted.length > 8 ? '…' : ''));
+      this.save();
+    }
     return { adopted, skipped };
   }
 
@@ -511,10 +595,11 @@ export class RippleHub {
 
   addSource(spec: string, note = '自定义仓库'): SourceRepo {
     const parsed = parseRepoSpec(spec);
-    const id = `${parsed.owner}/${parsed.repo}`;
+    const id = parsed.provider === 'gitlab' ? `${parsed.host}/${parsed.owner}/${parsed.repo}` : `${parsed.owner}/${parsed.repo}`;
     if (this.state.sources.some((s) => s.id === id)) throw new Error(`Source '${id}' already exists`);
     const source: SourceRepo = { id, ...parsed, note, builtin: false };
     this.state.sources.push(source);
+    this.logOp('添加来源', id, parsed.provider === 'gitlab' ? `GitLab · ${parsed.host}` : 'GitHub');
     this.save();
     return source;
   }
@@ -524,6 +609,7 @@ export class RippleHub {
     if (!source) throw new Error(`Source '${id}' not found`);
     if (source.builtin) throw new Error('Builtin source cannot be removed');
     this.state.sources = this.state.sources.filter((s) => s.id !== id);
+    this.logOp('移除来源', id, '已装技能保留');
     this.save();
   }
 

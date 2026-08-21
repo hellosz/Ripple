@@ -14,7 +14,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { BACKUP_RETENTION, RippleHub } from './hub.js';
 import { defaultState, loadState, saveState } from './state.js';
 import { symlinkTypeFor } from './fs-utils.js';
-import { parseRepoSpec, payloadFromZip, scanTarballSkills } from './sources.js';
+import { parseRepoSpec, payloadFromZip, scanTarballSkills, tarballUrl } from './sources.js';
 import { parseTar } from './tar.js';
 import type { SkillPayload } from './sources.js';
 
@@ -77,6 +77,8 @@ beforeEach(() => {
   home = mkdtempSync(join(tmpdir(), 'ripple-hub-test-'));
   mkdirSync(join(home, '.claude')); // 模拟已检测到 Claude Code
   hub = new RippleHub({ homeDir: home });
+  // 本文件的既有用例以内置存储语义书写；共享目录（新默认）语义见「共享目录 placement」用例组
+  hub.state.storage_location = 'builtin';
 });
 
 afterEach(() => {
@@ -240,12 +242,14 @@ describe('存储位置迁移', () => {
 describe('来源', () => {
   it('repo spec 解析', () => {
     expect(parseRepoSpec('anthropics/skills')).toEqual({
+      provider: 'github',
       owner: 'anthropics',
       repo: 'skills',
       branch: 'main',
       subdir: '',
     });
     expect(parseRepoSpec('ComposioHQ/skills#dev:packs')).toEqual({
+      provider: 'github',
       owner: 'ComposioHQ',
       repo: 'skills',
       branch: 'dev',
@@ -279,6 +283,7 @@ describe('来源', () => {
     );
     const fetchImpl = (async () => new Response(tarGz.slice().buffer)) as unknown as typeof fetch;
     const hub3 = new RippleHub({ homeDir: home, fetchImpl });
+    hub3.state.storage_location = 'builtin';
     hub3.addSource('acme/skills');
     const records = await hub3.installFromRepo('acme/skills', 'foo', [{ agent: 'claude-code' }]);
     expect(records[0]!.version).toBe('3.1.0');
@@ -290,6 +295,7 @@ describe('来源', () => {
     const tarGz = gzipSync(buildTar({ 'r-main/foo/SKILL.md': strToU8(skillMd('foo')) }));
     const fetchImpl = (async () => new Response(tarGz.slice().buffer)) as unknown as typeof fetch;
     const hub3 = new RippleHub({ homeDir: home, fetchImpl });
+    hub3.state.storage_location = 'builtin';
     hub3.addSource('acme/skills');
     await hub3.installFromRepo('acme/skills', 'foo', [{ agent: 'claude-code' }]);
     hub3.removeSource('acme/skills');
@@ -404,5 +410,129 @@ describe('存储位置切换不得破坏共享目录（回归：用户数据事�
     hub.setStorageLocation('shared');
     expect(readFileSync(join(foreign, 'SKILL.md'), 'utf8')).toContain('lark-roundtrip');
     expect(hub.installedVersion('mine')).toBe('1.0.0');
+  });
+});
+
+describe('共享目录 placement（agentskills.io 标准）', () => {
+  function sharedHub(): RippleHub {
+    const h = new RippleHub({ homeDir: home });
+    // 新默认即 shared
+    expect(h.state.storage_location).toBe('shared');
+    return h;
+  }
+
+  it('装到支持共享标准的 Agent（Codex）：mode=shared，零分发', () => {
+    mkdirSync(join(home, '.codex'));
+    const h = sharedHub();
+    const records = h.install(payload('shared-skill'), [{ agent: 'codex' }]);
+    expect(records[0]!.mode).toBe('shared');
+    expect(existsSync(join(home, '.agents', 'skills', 'shared-skill', 'SKILL.md'))).toBe(true);
+    expect(existsSync(join(home, '.codex', 'skills', 'shared-skill'))).toBe(false);
+  });
+
+  it('装到不支持共享的 Agent（Claude Code）：仍专属分发', () => {
+    const h = sharedHub();
+    const records = h.install(payload('shared-skill'), [{ agent: 'claude-code' }]);
+    expect(records[0]!.mode).not.toBe('shared');
+    expect(existsSync(join(home, '.claude', 'skills', 'shared-skill'))).toBe(true);
+  });
+
+  it('dedicated 个性化强制专属分发（即使 Codex 支持共享）', () => {
+    mkdirSync(join(home, '.codex'));
+    const h = sharedHub();
+    const records = h.install(payload('shared-skill'), [{ agent: 'codex', dedicated: true }]);
+    expect(records[0]!.mode).not.toBe('shared');
+    expect(existsSync(join(home, '.codex', 'skills', 'shared-skill'))).toBe(true);
+  });
+
+  it('shared placement 不支持启停', () => {
+    const h = sharedHub();
+    h.install(payload('shared-skill'), [{ agent: 'codex' }]);
+    expect(() => h.setEnabled('shared-skill', { agent: 'codex' }, false)).toThrow(/通用/);
+  });
+
+  it('addPlacement 补齐：不触发备份、写历史与操作日志', () => {
+    const h = sharedHub();
+    h.install(payload('shared-skill'), [{ agent: 'claude-code' }]);
+    const before = h.listBackups().length;
+    const record = h.addPlacement('shared-skill', { agent: 'codex' });
+    expect(record.mode).toBe('shared');
+    expect(h.listBackups().length).toBe(before);
+    expect(h.state.history['shared-skill']![0]!.detail).toContain('补齐');
+    expect(h.state.oplog[0]!.action).toBe('补齐');
+  });
+
+  it('卸载最后一处仅删除 owned 的 SSOT；他人放置的内容保留', () => {
+    const h = sharedHub();
+    // 模拟其他工具放置的技能（非 hub 写入 → 非 owned）
+    const foreign = join(home, '.agents', 'skills', 'lark-x');
+    mkdirSync(foreign, { recursive: true });
+    writeFileSync(join(foreign, 'SKILL.md'), skillMd('lark-x'));
+    h.addPlacement('lark-x', { agent: 'codex' });
+    h.uninstall('lark-x');
+    expect(existsSync(join(foreign, 'SKILL.md'))).toBe(true);
+    // hub 自己安装的（owned）正常删除
+    h.install(payload('mine'), [{ agent: 'codex' }]);
+    h.uninstall('mine');
+    expect(existsSync(join(home, '.agents', 'skills', 'mine'))).toBe(false);
+  });
+});
+
+describe('GitLab 私服来源', () => {
+  it('URL spec 解析（含分支与子目录）', () => {
+    expect(parseRepoSpec('https://gitlab.corp.local/team/skills#dev:packs')).toEqual({
+      provider: 'gitlab',
+      host: 'gitlab.corp.local',
+      owner: 'team',
+      repo: 'skills',
+      branch: 'dev',
+      subdir: 'packs',
+    });
+    expect(parseRepoSpec('https://github.com/anthropics/skills').provider).toBe('github');
+  });
+
+  it('tarball URL：gitlab 走 /-/archive，github 走 codeload', () => {
+    expect(
+      tarballUrl({ provider: 'gitlab', host: 'gitlab.corp.local', owner: 't', repo: 'r', branch: 'main' }),
+    ).toBe('https://gitlab.corp.local/t/r/-/archive/main/r-main.tar.gz');
+    expect(tarballUrl({ provider: 'github', owner: 'a', repo: 'b', branch: 'main' })).toBe(
+      'https://codeload.github.com/a/b/tar.gz/main',
+    );
+  });
+
+  it('installFromRepo 走 gitlab tarball（mock fetch 校验 URL）', async () => {
+    const tarGz = gzipSync(buildTar({ 'r-main/foo/SKILL.md': strToU8(skillMd('foo')) }));
+    let fetched = '';
+    const fetchImpl = (async (url: string) => {
+      fetched = String(url);
+      return new Response(tarGz.slice().buffer);
+    }) as unknown as typeof fetch;
+    const h = new RippleHub({ homeDir: home, fetchImpl });
+    h.addSource('https://gitlab.corp.local/acme/r#main');
+    await h.installFromRepo('gitlab.corp.local/acme/r', 'foo', [{ agent: 'claude-code' }]);
+    expect(fetched).toBe('https://gitlab.corp.local/acme/r/-/archive/main/r-main.tar.gz');
+    expect(h.installedVersion('foo')).toBe('1.0.0');
+  });
+});
+
+describe('操作日志与批量备份', () => {
+  it('操作全链路留痕且上限 500', () => {
+    hub.install(payload('a-skill'), [{ agent: 'claude-code' }]);
+    hub.sync('a-skill', [{ agent: 'claude-code' }]);
+    hub.uninstall('a-skill');
+    const actions = hub.state.oplog.map((o) => o.action);
+    expect(actions).toEqual(expect.arrayContaining(['安装', '同步', '卸载']));
+    for (let i = 0; i < 520; i++) hub.logOp('测试', 'x', String(i));
+    expect(hub.state.oplog.length).toBe(500);
+  });
+
+  it('按 Agent 批量备份（多选去重 + 共享标准 Agent 计入共享库）', () => {
+    mkdirSync(join(home, '.codex'));
+    hub.install(payload('s1'), [{ agent: 'claude-code' }, { agent: 'codex' }]);
+    hub.install(payload('s2'), [{ agent: 'claude-code' }]);
+    const records = hub.backupAgents(['claude-code', 'codex']);
+    expect(new Set(records.map((r) => r.skill))).toEqual(new Set(['s1', 's2']));
+    expect(records[0]!.reason).toContain('手动备份');
+    expect(hub.state.oplog[0]!.action).toBe('批量备份');
   });
 });
