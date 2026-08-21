@@ -274,6 +274,25 @@ export function registerLocalCommands(program: Command, getCtx: () => CliContext
       emit(ctx.out, { pruned: count }, () => note(ctx.out, `已删除 ${count} 份备份`));
     });
 
+  // ---- log ----
+  program
+    .command('log')
+    .description('本地操作记录（安装/同步/启停/卸载/回退/来源与设置变更）')
+    .option('--limit <n>', '显示条数', '30')
+    .action(async (opts: { limit: string }) => {
+      const ctx = getCtx();
+      const entries = ctx.hub.state.oplog.slice(0, Math.max(1, Number(opts.limit) || 30));
+      emit(ctx.out, entries, () => {
+        if (entries.length === 0) {
+          note(ctx.out, '暂无操作记录');
+          return;
+        }
+        for (const e of entries) {
+          process.stdout.write(`${e.at}  [${e.action}] ${e.target}  ${e.detail}\n`);
+        }
+      });
+    });
+
   // ---- config ----
   const config = program.command('config').description('CLI 配置（分层：flag > env > ~/.ripplerc > 默认）');
   config
