@@ -1,9 +1,9 @@
 # Tasks: skill-ai
 
 ## 1. 主进程
-- [ ] 1.1 AI 服务商配置存储（safeStorage）与 OpenAI 兼容调用封装（超时/重试/JSON 兜底）
-- [ ] 1.2 评分：rubric prompt（按调研报告）+ 结构化解析；优化：建议+patches prompt
-- [ ] 1.3 shared api / preload：aiConfig get/set、aiScore、aiOptimize
+- [x] 1.1 AI 服务商配置存储（safeStorage）与 OpenAI 兼容调用封装（超时/重试/JSON 兜底）
+- [x] 1.2 评分：rubric prompt（按调研报告）+ 结构化解析；优化：建议+patches prompt
+- [x] 1.3 shared api / preload：aiConfig get/set、aiScore、aiOptimize
 
 ## 2. renderer
 - [ ] 2.1 设置「AI 服务商」tab（openai/deepseek/custom 表单、连接测试）

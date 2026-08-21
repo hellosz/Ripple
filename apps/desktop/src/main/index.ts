@@ -9,10 +9,14 @@ import {
   UPDATER_CHANNEL,
 } from '../shared/api.js';
 import { DesktopServices } from './services.js';
+import { AiService, SkillAiFeatures, type AiProvider } from './ai.js';
+import type { AiPatch } from '@ripple/contract';
 
 const { autoUpdater } = electronUpdater;
 
 const services = new DesktopServices();
+const aiService = new AiService();
+const skillAi = new SkillAiFeatures(aiService);
 let mainWindow: BrowserWindow | null = null;
 let pendingDeepLink: string | null = null;
 
@@ -206,6 +210,21 @@ const handlers: Record<string, RpcHandler> = {
   installFromRegistry: (skill: string, targets: InstallTarget[]) =>
     services.installFromRegistry(skill, targets),
   updateAll: () => services.updateAll(),
+
+  aiGetConfig: () => aiService.getConfig(),
+  aiSetConfig: (input: { provider: AiProvider; baseUrl?: string; model?: string; apiKey?: string }) =>
+    aiService.setConfig(input),
+  aiTest: () => aiService.test(),
+  aiScore: (skill: string) => skillAi.score(services.hub.readSkillFiles(skill)),
+  aiOptimize: (skill: string) => skillAi.optimize(services.hub.readSkillFiles(skill)),
+  aiApplyPatches: (skill: string, patches: AiPatch[]) => {
+    let applied = 0;
+    for (const patch of patches) {
+      services.hub.writeSkillFile(skill, patch.path, patch.new_content);
+      applied++;
+    }
+    return { applied };
+  },
 
   appVersion: () => app.getVersion(),
   quitAndInstall: () => {

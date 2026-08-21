@@ -10,6 +10,7 @@ export * from './collection.js';
 export * from './follow.js';
 export * from './admin.js';
 export * from './meta.js';
+export * from './ai.js';
 
 /** 游客会话头名称（前端 localStorage 持久化 UUID） */
 export const GUEST_SESSION_HEADER = 'X-Ripple-Guest-Session';

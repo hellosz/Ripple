@@ -13,7 +13,23 @@ import type {
   SourceRepo,
   StorageLocation,
 } from '@ripple/hub';
-import type { Collection, SkillListItem, User } from '@ripple/contract';
+import type {
+  AiPatch,
+  AiScoreResult,
+  AiSuggestResult,
+  Collection,
+  SkillListItem,
+  User,
+} from '@ripple/contract';
+
+export type AiProvider = 'openai' | 'deepseek' | 'custom';
+
+export interface AiConfigPublic {
+  provider: AiProvider;
+  baseUrl: string;
+  model: string;
+  hasKey: boolean;
+}
 
 export interface AgentSummary extends DetectedAgent {
   installCount: number;
@@ -102,6 +118,22 @@ export interface DesktopApi {
   checkUpdates(): Promise<UpdateEntry[]>;
   installFromRegistry(skill: string, targets: InstallTarget[]): Promise<InstallRecord[]>;
   updateAll(): Promise<UpdateEntry[]>;
+
+  // ---- AI（本地扩展，多服务商）----
+  aiGetConfig(): Promise<AiConfigPublic>;
+  aiSetConfig(input: {
+    provider: AiProvider;
+    baseUrl?: string;
+    model?: string;
+    apiKey?: string;
+  }): Promise<AiConfigPublic>;
+  aiTest(): Promise<{ ok: boolean; message: string }>;
+  /** SKILL 质量评分（LLM 不可用时降级本地规则评级） */
+  aiScore(skill: string): Promise<AiScoreResult>;
+  /** SKILL 优化建议 + 可落盘补丁 */
+  aiOptimize(skill: string): Promise<AiSuggestResult>;
+  /** 应用优化补丁（写回 SSOT 并重建 copy 分发） */
+  aiApplyPatches(skill: string, patches: AiPatch[]): Promise<{ applied: number }>;
 
   // ---- 应用 ----
   appVersion(): Promise<string>;

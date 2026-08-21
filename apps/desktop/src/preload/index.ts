@@ -44,6 +44,12 @@ const rpcMethods = [
   'checkUpdates',
   'installFromRegistry',
   'updateAll',
+  'aiGetConfig',
+  'aiSetConfig',
+  'aiTest',
+  'aiScore',
+  'aiOptimize',
+  'aiApplyPatches',
   'appVersion',
   'quitAndInstall',
 ] as const;
