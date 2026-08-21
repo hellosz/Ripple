@@ -311,11 +311,15 @@ export class RippleHub {
 
   setStorageLocation(location: StorageLocation): void {
     if (location === this.state.storage_location) return;
+    const oldLocation = this.state.storage_location;
     const oldDir = this.storageDir();
     const newDir = this.storageDir(location);
-    if (existsSync(oldDir)) {
-      ensureDir(dirname(newDir));
-      copyDir(oldDir, newDir);
+    // 只迁移 hub 纳管的技能子目录——共享目录（~/.agents/skills）不属于 hub 独占，
+    // 其中其他工具（如 lark-cli）放置的内容绝不能被搬动或删除。
+    const managed = new Set(this.state.installs.map((i) => i.skill));
+    for (const skill of managed) {
+      const src = join(oldDir, skill);
+      if (existsSync(src)) copyDir(src, join(newDir, skill));
     }
     this.state.storage_location = location;
     // 重建全部启用分发（指向新位置）
@@ -325,7 +329,11 @@ export class RippleHub {
         ...(install.scope === 'global' ? {} : { projectDir: install.scope }),
       });
     }
-    if (existsSync(oldDir) && oldDir !== newDir) removePath(oldDir);
+    // 清理旧位置：仅 hub 独占的内置目录（~/.ripple/skills）可整体删除；
+    // 共享目录一律保留（多余副本无害，误删有害）。
+    if (oldLocation === 'builtin' && existsSync(oldDir) && oldDir !== newDir) {
+      removePath(oldDir);
+    }
     this.save();
   }
 

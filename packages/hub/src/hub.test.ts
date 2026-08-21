@@ -357,3 +357,52 @@ describe('接管既有技能（adopt）', () => {
     expect(hub.state.installs.filter((i) => i.skill === 'once-only').length).toBe(count);
   });
 });
+
+describe('存储位置切换不得破坏共享目录（回归：用户数据事故）', () => {
+  it('shared → builtin：共享目录中非纳管内容原样保留，目录不被删除', () => {
+    // 共享目录里有其他工具（如 lark-cli）放置的技能
+    const foreign = join(home, '.agents', 'skills', 'lark-foreign');
+    mkdirSync(foreign, { recursive: true });
+    writeFileSync(join(foreign, 'SKILL.md'), skillMd('lark-foreign'));
+
+    // hub 在 shared 模式下纳管一个技能
+    hub.setStorageLocation('shared');
+    hub.install(payload('mine'), [{ agent: 'claude-code' }]);
+
+    // 切回 builtin
+    hub.setStorageLocation('builtin');
+
+    // 纳管技能迁到了内置目录且分发有效
+    expect(existsSync(join(home, '.ripple', 'skills', 'mine', 'SKILL.md'))).toBe(true);
+    expect(readFileSync(join(home, '.claude', 'skills', 'mine', 'SKILL.md'), 'utf8')).toContain('mine');
+    // 共享目录整体保留、外部内容毫发无损
+    expect(existsSync(join(home, '.agents', 'skills'))).toBe(true);
+    expect(readFileSync(join(foreign, 'SKILL.md'), 'utf8')).toContain('lark-foreign');
+  });
+
+  it('builtin → shared：只迁移纳管技能，不影响共享目录既有内容；内置目录被清理', () => {
+    const foreign = join(home, '.agents', 'skills', 'lark-keep');
+    mkdirSync(foreign, { recursive: true });
+    writeFileSync(join(foreign, 'SKILL.md'), skillMd('lark-keep'));
+
+    hub.install(payload('mine'), [{ agent: 'claude-code' }]);
+    hub.setStorageLocation('shared');
+
+    expect(existsSync(join(home, '.agents', 'skills', 'mine', 'SKILL.md'))).toBe(true);
+    expect(readFileSync(join(foreign, 'SKILL.md'), 'utf8')).toContain('lark-keep');
+    // 内置目录是 hub 独占，可清理
+    expect(existsSync(join(home, '.ripple', 'skills'))).toBe(false);
+  });
+
+  it('往返切换后外部内容依然完好', () => {
+    const foreign = join(home, '.agents', 'skills', 'lark-roundtrip');
+    mkdirSync(foreign, { recursive: true });
+    writeFileSync(join(foreign, 'SKILL.md'), skillMd('lark-roundtrip'));
+    hub.install(payload('mine'), [{ agent: 'claude-code' }]);
+    hub.setStorageLocation('shared');
+    hub.setStorageLocation('builtin');
+    hub.setStorageLocation('shared');
+    expect(readFileSync(join(foreign, 'SKILL.md'), 'utf8')).toContain('lark-roundtrip');
+    expect(hub.installedVersion('mine')).toBe('1.0.0');
+  });
+});
