@@ -38,7 +38,9 @@ export function Toolbar(): ReactElement {
         ? '自动备份保留最近 20 份'
         : store.settingsTab === 'oplog'
           ? '本地 hub 操作日志（最近 500 条）'
-          : '服务 · GitHub / GitLab 仓库 · ZIP · Deep Link';
+          : store.settingsTab === 'about'
+            ? '版本信息与应用更新'
+            : '服务 · GitHub / GitLab 仓库 · ZIP · Deep Link';
   }
 
   const showUpdateAll = loggedIn && updates.length > 0 && view.kind !== 'market';

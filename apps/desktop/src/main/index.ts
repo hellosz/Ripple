@@ -118,13 +118,18 @@ function createWindow(): void {
 function setupUpdater(): void {
   if (!app.isPackaged) return;
   autoUpdater.autoDownload = true;
-  const send = (type: string, version?: string) => {
-    mainWindow?.webContents.send(UPDATER_CHANNEL, { type, version });
+  const send = (type: string, version?: string, percent?: number, message?: string) => {
+    mainWindow?.webContents.send(UPDATER_CHANNEL, { type, version, percent, message });
   };
+  autoUpdater.on('checking-for-update', () => send('checking'));
   autoUpdater.on('update-available', (info) => send('available', info.version));
+  autoUpdater.on('update-not-available', (info) => send('not-available', info.version));
+  autoUpdater.on('download-progress', (progress) =>
+    send('progress', undefined, Math.round(progress.percent)),
+  );
   autoUpdater.on('update-downloaded', (info) => send('downloaded', info.version));
-  autoUpdater.on('error', () => send('error'));
-  // 检查失败不阻塞使用
+  autoUpdater.on('error', (err) => send('error', undefined, undefined, err.message));
+  // 启动静默检查；失败不阻塞使用
   void autoUpdater.checkForUpdates().catch(() => {});
 }
 
@@ -227,6 +232,24 @@ const handlers: Record<string, RpcHandler> = {
   },
 
   appVersion: () => app.getVersion(),
+  checkAppUpdate: async () => {
+    const current = app.getVersion();
+    if (!app.isPackaged) {
+      return { current, latest: null, available: false, message: '开发模式不检查更新' };
+    }
+    try {
+      const result = await autoUpdater.checkForUpdates();
+      const latest = result?.updateInfo?.version ?? null;
+      return { current, latest, available: Boolean(latest && latest !== current) };
+    } catch (err) {
+      return {
+        current,
+        latest: null,
+        available: false,
+        message: err instanceof Error ? err.message : String(err),
+      };
+    }
+  },
   quitAndInstall: () => {
     autoUpdater.quitAndInstall();
   },

@@ -137,8 +137,17 @@ export interface DesktopApi {
 
   // ---- 应用 ----
   appVersion(): Promise<string>;
+  /** 手动检查应用更新（GitHub Release 通道；开发模式返回提示） */
+  checkAppUpdate(): Promise<{
+    current: string;
+    latest: string | null;
+    available: boolean;
+    message?: string;
+  }>;
   onDeepLink(cb: (url: string) => void): () => void;
-  onUpdaterEvent(cb: (event: { type: string; version?: string }) => void): () => void;
+  onUpdaterEvent(
+    cb: (event: { type: string; version?: string; percent?: number; message?: string }) => void,
+  ): () => void;
   quitAndInstall(): Promise<void>;
 }
 

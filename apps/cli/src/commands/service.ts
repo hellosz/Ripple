@@ -1,13 +1,139 @@
+import { spawnSync } from 'node:child_process';
 import { readFileSync, statSync } from 'node:fs';
 import { basename } from 'node:path';
+import { createInterface } from 'node:readline/promises';
 import type { Command } from 'commander';
 import { buildZip } from '@ripple/skill-core';
 import { readDirFiles } from '@ripple/hub';
 import { CliError, emit, note, paint } from '../output.js';
 import { requireToken, type CliContext } from '../context.js';
-import { CLI_VERSION } from '../version.js';
+import { CLI_PACKAGE_NAME, CLI_VERSION } from '../version.js';
+
+async function fetchWithTimeout(url: string, ms = 5000): Promise<Response | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** 最新版查询：优先服务端 /api/cli/version，回退 npm registry；均不可达返回 null */
+export async function fetchLatestCliVersion(
+  ctx: CliContext,
+): Promise<{ latest: string | null; hint: string }> {
+  try {
+    const info = await ctx.client.meta.cliVersion();
+    if (info.latest) return { latest: info.latest, hint: info.install_hint };
+  } catch {
+    /* 服务不可达 → npm */
+  }
+  const res = await fetchWithTimeout(
+    `https://registry.npmjs.org/${encodeURIComponent(CLI_PACKAGE_NAME)}/latest`,
+  );
+  if (res?.ok) {
+    const data = (await res.json()) as { version?: string };
+    if (data.version) return { latest: data.version, hint: `npm i -g ${CLI_PACKAGE_NAME}@latest` };
+  }
+  return { latest: null, hint: `npm i -g ${CLI_PACKAGE_NAME}@latest` };
+}
+
+/** CLI 自更新（由裸 `ripple update` 调用）：--check 仅检查；确认后实际执行 npm 全局安装 */
+export async function runSelfUpdate(
+  ctx: CliContext,
+  opts: { check?: boolean },
+): Promise<void> {
+  const { latest, hint } = await fetchLatestCliVersion(ctx);
+  const updateAvailable = Boolean(latest && latest !== CLI_VERSION);
+  const payload = { current: CLI_VERSION, latest, update_available: updateAvailable };
+  if (!latest) {
+    emit(ctx.out, payload, () =>
+      note(ctx.out, `当前版本 ${CLI_VERSION}（无法获取最新版本：离线或包尚未发布）`),
+    );
+    return;
+  }
+  if (!updateAvailable) {
+    emit(ctx.out, payload, () => process.stdout.write(`已是最新版本 ${CLI_VERSION}
+`));
+    return;
+  }
+  if (opts.check) {
+    emit(ctx.out, payload, () =>
+      process.stdout.write(`有新版本 ${latest}（当前 ${CLI_VERSION}）：${hint}
+`),
+    );
+    return;
+  }
+  // 执行升级：交互确认或 --yes；非交互无 --yes 回退为提示（退出码 0）
+  if (!ctx.out.yes) {
+    if (!ctx.out.interactive) {
+      emit(ctx.out, payload, () =>
+        process.stdout.write(`有新版本 ${latest}（当前 ${CLI_VERSION}）。非交互模式请执行：${hint}
+`),
+      );
+      return;
+    }
+    const rl = createInterface({ input: process.stdin, output: process.stderr });
+    try {
+      const answer = await rl.question(`升级 ${CLI_VERSION} → ${latest}？[Y/n] `);
+      if (/^n(o)?$/i.test(answer.trim())) {
+        note(ctx.out, '已取消');
+        return;
+      }
+    } finally {
+      rl.close();
+    }
+  }
+  note(ctx.out, `正在升级：npm i -g ${CLI_PACKAGE_NAME}@latest`);
+  const result = spawnSync('npm', ['i', '-g', `${CLI_PACKAGE_NAME}@latest`], {
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+  });
+  if (result.status === 0) {
+    emit(ctx.out, { ...payload, upgraded: true }, () =>
+      note(ctx.out, paint(ctx.out, 'green', `升级完成：${CLI_VERSION} → ${latest}`)),
+    );
+  } else {
+    throw new CliError(`npm 安装失败（退出码 ${result.status ?? '未知'}），可手动执行：${hint}`);
+  }
+}
 
 export function registerServiceCommands(program: Command, getCtx: () => CliContext): void {
+  program
+    .command('version')
+    .description('聚合版本视图：CLI / Node / 服务端 / npm 最新版')
+    .action(async () => {
+      const ctx = getCtx();
+      let serverVersion: string | null = null;
+      try {
+        serverVersion = (await ctx.client.meta.health()).version;
+      } catch {
+        /* 服务不可达 */
+      }
+      const { latest } = await fetchLatestCliVersion(ctx);
+      const payload = {
+        current: CLI_VERSION,
+        node: process.version,
+        server: ctx.server,
+        server_version: serverVersion,
+        latest,
+        update_available: Boolean(latest && latest !== CLI_VERSION),
+      };
+      emit(ctx.out, payload, () => {
+        process.stdout.write(`ripple CLI  ${CLI_VERSION}${payload.update_available ? paint(ctx.out, 'yellow', `（可升级 → ${latest}，运行 ripple update）`) : ''}
+`);
+        process.stdout.write(`Node        ${process.version}
+`);
+        process.stdout.write(`服务端      ${ctx.server}${serverVersion ? `（v${serverVersion}）` : '（不可达）'}
+`);
+        process.stdout.write(`npm 最新    ${latest ?? '无法获取'}
+`);
+      });
+    });
+
   program
     .command('search <query>')
     .alias('s')
@@ -128,36 +254,4 @@ export function registerServiceCommands(program: Command, getCtx: () => CliConte
       },
     );
 
-  program
-    .command('self-update')
-    .alias('upgrade')
-    .description('检查 CLI 新版本')
-    .action(async () => {
-      const ctx = getCtx();
-      let latest = '';
-      let hint = 'npm i -g @hellosz/ripple@latest';
-      try {
-        const info = await ctx.client.meta.cliVersion();
-        latest = info.latest;
-        hint = info.install_hint;
-      } catch {
-        // 服务不可达时直接查 npm registry
-        try {
-          const res = await fetch('https://registry.npmjs.org/@hellosz%2Fripple/latest');
-          if (res.ok) latest = ((await res.json()) as { version?: string }).version ?? '';
-        } catch {
-          /* 离线 */
-        }
-      }
-      const payload = { current: CLI_VERSION, latest, update_available: Boolean(latest && latest !== CLI_VERSION) };
-      emit(ctx.out, payload, () => {
-        if (!latest) {
-          note(ctx.out, `当前版本 ${CLI_VERSION}（无法获取最新版本信息）`);
-        } else if (payload.update_available) {
-          process.stdout.write(`有新版本 ${latest}（当前 ${CLI_VERSION}）：${hint}\n`);
-        } else {
-          process.stdout.write(`已是最新版本 ${CLI_VERSION}\n`);
-        }
-      });
-    });
 }

@@ -51,6 +51,7 @@ const rpcMethods = [
   'aiOptimize',
   'aiApplyPatches',
   'appVersion',
+  'checkAppUpdate',
   'quitAndInstall',
 ] as const;
 
@@ -64,8 +65,13 @@ api.onDeepLink = ((cb: (url: string) => void) => {
   return () => ipcRenderer.removeListener(DEEPLINK_CHANNEL, listener);
 }) as never;
 
-api.onUpdaterEvent = ((cb: (event: { type: string; version?: string }) => void) => {
-  const listener = (_event: unknown, payload: { type: string; version?: string }) => cb(payload);
+api.onUpdaterEvent = ((
+  cb: (event: { type: string; version?: string; percent?: number; message?: string }) => void,
+) => {
+  const listener = (
+    _event: unknown,
+    payload: { type: string; version?: string; percent?: number; message?: string },
+  ) => cb(payload);
   ipcRenderer.on(UPDATER_CHANNEL, listener);
   return () => ipcRenderer.removeListener(UPDATER_CHANNEL, listener);
 }) as never;

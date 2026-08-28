@@ -4,6 +4,7 @@ import { payloadFromZip } from '@ripple/hub';
 import { readRc, rcPath, writeRc, DEFAULT_SERVER } from '../config.js';
 import { CliError, confirmDestructive, emit, note, paint } from '../output.js';
 import { parseToTargets, requireToken, resolveTargets, type CliContext } from '../context.js';
+import { runSelfUpdate } from './service.js';
 
 async function payloadFromRegistry(ctx: CliContext, name: string) {
   const data = await ctx.client.skills.download(name);
@@ -46,19 +47,21 @@ export function registerLocalCommands(program: Command, getCtx: () => CliContext
 
   program
     .command('update [name]')
-    .alias('up')
-    .description('更新技能（--all 更新全部落后安装，适合 CI）')
-    .option('--all', '更新全部')
-    .action(async (name: string | undefined, opts: { all?: boolean }) => {
+    .aliases(['up', 'upgrade'])
+    .description('更新技能（--all 全部落后安装）；不带参数时更新 CLI 自身（--check 仅检查）')
+    .option('--all', '更新全部技能')
+    .option('--check', '仅检查 CLI 新版本，不执行升级')
+    .action(async (name: string | undefined, opts: { all?: boolean; check?: boolean }) => {
       const ctx = getCtx();
+      // 裸 update = CLI 自更新
+      if (!name && !opts.all) {
+        await runSelfUpdate(ctx, { check: opts.check });
+        return;
+      }
       requireToken(ctx);
       const skillNames = opts.all
         ? [...new Set(ctx.hub.state.installs.map((i) => i.skill))]
-        : name
-          ? [name]
-          : (() => {
-              throw new CliError('指定技能名或使用 --all', 2);
-            })();
+        : [name!];
       const results: Array<{ skill: string; from: string | null; to: string; updated: boolean }> = [];
       for (const skill of skillNames) {
         const current = ctx.hub.installedVersion(skill);

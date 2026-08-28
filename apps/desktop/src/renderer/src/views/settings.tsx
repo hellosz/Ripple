@@ -974,6 +974,126 @@ function OplogTab(): ReactElement {
   );
 }
 
+/** 「关于与更新」tab：版本信息 + 手动检查更新全状态流 */
+function AboutTab(): ReactElement {
+  const store = useStore();
+  const [version, setVersion] = useState('');
+  const [status, setStatus] = useState('');
+  const [checking, setChecking] = useState(false);
+  const [percent, setPercent] = useState<number | null>(null);
+  const [readyVersion, setReadyVersion] = useState<string | null>(null);
+
+  useEffect(() => {
+    void ripple.appVersion().then(setVersion);
+  }, []);
+
+  useEffect(
+    () =>
+      ripple.onUpdaterEvent((ev) => {
+        if (ev.type === 'checking') setStatus('检查中…');
+        if (ev.type === 'available') {
+          setStatus(`发现新版本 v${ev.version ?? ''}，正在下载…`);
+          setPercent(0);
+        }
+        if (ev.type === 'not-available') setStatus(`已是最新版本 v${version || (ev.version ?? '')}`);
+        if (ev.type === 'progress') setPercent(ev.percent ?? null);
+        if (ev.type === 'downloaded') {
+          setReadyVersion(ev.version ?? '');
+          setPercent(null);
+          setStatus(`新版本 v${ev.version ?? ''} 已就绪`);
+        }
+        if (ev.type === 'error') {
+          setPercent(null);
+          setStatus(`更新失败：${ev.message ?? '未知错误'}（不影响使用）`);
+        }
+      }),
+    [version],
+  );
+
+  const check = (): void => {
+    setChecking(true);
+    setStatus('检查中…');
+    store.run(async () => {
+      try {
+        const result = await ripple.checkAppUpdate();
+        if (result.message) setStatus(result.message);
+        else if (!result.available) setStatus(`已是最新版本 v${result.current}`);
+        else setStatus(`发现新版本 v${result.latest ?? ''}，正在下载…`);
+      } finally {
+        setChecking(false);
+      }
+    });
+  };
+
+  const panel: CSSProperties = {
+    border: '1px solid rgba(63,68,56,.09)',
+    borderRadius: 13,
+    background: '#ffffff',
+    padding: '18px 20px',
+    maxWidth: 560,
+  };
+  const row: CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, fontSize: 12.5, padding: '5px 0' };
+  const label: CSSProperties = { width: 72, color: dim(0.5), flex: 'none' };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={panel}>
+        <div style={{ fontWeight: 900, fontSize: 14, color: INK, marginBottom: 8 }}>关于 Ripple</div>
+        <div style={row}>
+          <span style={label}>当前版本</span>
+          <span style={{ fontFamily: MONO, color: INK, fontWeight: 700 }}>v{version || '…'}</span>
+        </div>
+        <div style={row}>
+          <span style={label}>更新通道</span>
+          <span style={{ color: dim(0.65) }}>
+            GitHub Release ·{' '}
+            <a href="https://github.com/hellosz/Ripple/releases" target="_blank" rel="noreferrer">
+              hellosz/Ripple
+            </a>
+          </span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 12 }}>
+          <span
+            className="rp-btn-outline"
+            onClick={checking ? undefined : check}
+            style={{ ...outlineBtn, opacity: checking ? 0.5 : 1, cursor: checking ? 'default' : 'pointer' }}
+          >
+            {checking ? '检查中…' : '检查更新'}
+          </span>
+          {readyVersion !== null && (
+            <span className="rp-btn-grad" onClick={() => void ripple.quitAndInstall()} style={gradBtn}>
+              重启安装 v{readyVersion}
+            </span>
+          )}
+        </div>
+        {status && (
+          <div style={{ marginTop: 10, fontSize: 12.5, color: dim(0.6) }}>{status}</div>
+        )}
+        {percent !== null && (
+          <div style={{ marginTop: 8, maxWidth: 360 }}>
+            <div style={{ height: 6, borderRadius: 3, background: 'rgba(63,68,56,.08)', overflow: 'hidden' }}>
+              <div
+                style={{
+                  height: '100%',
+                  width: `${percent}%`,
+                  borderRadius: 3,
+                  background: `linear-gradient(90deg, ${PRIMARY}, #b9c69a)`,
+                  transition: 'width .3s',
+                }}
+              />
+            </div>
+            <div style={{ fontSize: 11, color: dim(0.45), marginTop: 4, fontFamily: MONO }}>{percent}%</div>
+          </div>
+        )}
+      </div>
+      <div style={{ ...panel, fontSize: 12, color: dim(0.5), lineHeight: 1.8 }}>
+        应用启动时会静默检查一次更新；发现新版本自动后台下载，完成后顶部出现「重启更新」横幅。
+        开发模式（未打包运行）不检查更新。CLI 对应能力：`ripple version` 与 `ripple update`。
+      </div>
+    </div>
+  );
+}
+
 export function SettingsView(): ReactElement {
   const store = useStore();
   const { settingsTab } = store;
@@ -986,6 +1106,7 @@ export function SettingsView(): ReactElement {
             { key: 'ai', name: 'AI 服务商' },
             { key: 'backups', name: '备份管理' },
             { key: 'oplog', name: '操作记录' },
+            { key: 'about', name: '关于与更新' },
           ] as const
         ).map((t) => (
           <span
@@ -1002,6 +1123,7 @@ export function SettingsView(): ReactElement {
       {settingsTab === 'ai' && <AiTab />}
       {settingsTab === 'backups' && <BackupsTab />}
       {settingsTab === 'oplog' && <OplogTab />}
+      {settingsTab === 'about' && <AboutTab />}
     </>
   );
 }

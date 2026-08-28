@@ -17,12 +17,12 @@ ripple publish ./my-skill --recommendation "..." --category 工具链
 |---|---|
 | 认证 | `login [--remote]` · `logout` · `whoami` |
 | 发现 | `search <q>` · `info <name>` · `list [--installed]` |
-| 本地 | `install <name> [--agent] [--project] [--from <repo>] [--zip <file>]` · `update [name] [--all]` · `uninstall <name>` · `sync <name> --to <agent[:dir]>...` · `enable/disable <name> --agent <id>` |
+| 本地 | `install <name> [--agent] [--project] [--from <repo>] [--zip <file>]` · `update [name] [--all]`（无参数=更新 CLI 自身，`--check` 仅检查） · `uninstall <name>` · `sync <name> --to <agent[:dir]>...` · `enable/disable <name> --agent <id>` |
 | Agent | `agent list` · `agent scan` |
 | 来源 | `source list/add/remove/skills`（GitHub 仓库源，未登录可用） |
 | 备份 | `backup list/restore <id>/prune` |
 | 配置 | `config get [key]` · `config set <key> <value>` |
-| 其他 | `publish <path>` · `self-update` |
+| 其他 | `publish <path>` · `version`（聚合版本视图） |
 
 ## 脚本化约定
 
@@ -37,15 +37,15 @@ ripple publish ./my-skill --recommendation "..." --category 工具链
 |---|---|
 | `ripple install <name> --target claude` | `ripple install <name> --agent claude-code` |
 | `ripple install <name> --dir <path>` | `ripple install <name> --project <path>` |
-| `ripple update`（自更新） | `ripple self-update` |
+| `ripple update`（自更新） | `ripple update`（不变；带技能名/`--all` 为技能更新） |
 | `ripple update <name>` | `ripple update <name>`（不变；新增 `--all`） |
 | `ripple uninstall / delete / rm` | 不变（新增卸载前自动备份） |
 | `ripple publish <path> --recommendation ...` | 不变（打包改为纯 Node，无需系统 zip） |
 | `ripple config` | `ripple config get` |
-| `ripple version` / `-v` | `ripple --version`（版本与 npm 包一致） |
+| `ripple version` / `-v` | `ripple version`（聚合视图）/ `ripple --version` |
 | `~/.ripplerc`（KEY=VALUE） | 自动兼容读取，写入转 JSON 格式 |
 
-高频别名保留：`i`=install、`s`=search、`ls`=list、`up`=update、`rm`/`delete`=uninstall、`pub`=publish、`show`=info、`upgrade`=self-update。
+高频别名保留：`i`=install、`s`=search、`ls`=list、`up`=update、`rm`/`delete`=uninstall、`pub`=publish、`show`=info、`upgrade`=update。
 
 行为变化（BREAKING）：
 - 安装不再解压到当前目录的 `.skills/`，而是进入中心存储（`~/.ripple/skills`）并按 Agent 分发（默认 symlink）。
