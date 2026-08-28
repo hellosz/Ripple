@@ -13,6 +13,8 @@ export default tseslint.config(
       'tmp/**',
       'test-results/**',
       'playwright-report/**',
+      // Next 运行时生成产物（gitignored，dev/start 会重写 triple-slash 引用）
+      'apps/web/next-env.d.ts',
     ],
   },
   js.configs.recommended,
