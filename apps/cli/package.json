@@ -24,18 +24,17 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run"
   },
-  "dependencies": {
+  "devDependencies": {
+    "fflate": "^0.8.2",
+    "tsup": "^8.4.0",
     "@ripple/api-client": "workspace:*",
     "@ripple/contract": "workspace:*",
     "@ripple/hub": "workspace:*",
     "@ripple/skill-core": "workspace:*",
     "commander": "^14.0.0"
   },
-  "devDependencies": {
-    "fflate": "^0.8.2",
-    "tsup": "^8.4.0"
-  },
   "publishConfig": {
     "access": "public"
-  }
+  },
+  "dependencies": {}
 }
