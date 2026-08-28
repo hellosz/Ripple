@@ -72,6 +72,10 @@ function createWindow(): void {
     minHeight: 640,
     title: 'Ripple',
     backgroundColor: '#faf9f2',
+    // 打包后 Linux 图标来自 desktop entry / mac 来自 icns；dev 模式显式指定
+    ...(app.isPackaged
+      ? {}
+      : { icon: join(import.meta.dirname, '../../build/icons/256x256.png') }),
     webPreferences: {
       preload: join(import.meta.dirname, '../preload/index.js'),
       contextIsolation: true,

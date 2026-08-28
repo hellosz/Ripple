@@ -2,6 +2,7 @@ appId: dev.ripple.desktop
 productName: Ripple
 directories:
   output: release
+  buildResources: build
 files:
   - out/**
 publish:
@@ -11,6 +12,7 @@ publish:
 linux:
   # 仅 Linux 需要覆盖可执行名（包名 @ripple/desktop 不能作文件名）；macOS 保持 Ripple.app
   executableName: ripple-desktop
+  icon: build/icons
   artifactName: ripple-desktop_${version}_${arch}.${ext}
   target:
     - AppImage
@@ -18,12 +20,14 @@ linux:
   category: Development
   maintainer: Ripple <noreply@ripple.dev>
 mac:
+  icon: build/icon.png
   target:
     - dmg
   category: public.app-category.developer-tools
   # 无开发者证书时显式 ad-hoc 签名（arm64 必需；用户 xattr -cr 放行即可运行）
   identity: null
 win:
+  icon: build/icon.png
   target:
     - nsis
 nsis:

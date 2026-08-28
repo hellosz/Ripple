@@ -4,6 +4,7 @@
  *   pnpm pack:cli               → artifacts/hellosz-ripple-<version>.tgz（npm i -g 即装）
  *   pnpm pack:cli --install     → 打包后直接全局安装
  *   pnpm pack:desktop           → 当前平台安装包（Linux: AppImage+deb / macOS: dmg+zip / Windows: nsis）
+ *   pnpm pack:desktop --install → 打包后直接安装（Linux: sudo dpkg -i；macOS: 打开 dmg）
  *   pnpm pack                   → 两者都打
  * 产物统一收进根级 artifacts/，输出大小与 sha256 清单。
  */
@@ -68,6 +69,25 @@ function packDesktop() {
     /\.exe$/,
     /^latest.*\.yml$/,
   ]);
+  if (doInstall) {
+    const find = (re) => produced.find((f) => re.test(f));
+    if (process.platform === 'linux') {
+      const deb = find(/\.deb$/);
+      if (!deb) throw new Error('未找到 deb 产物');
+      console.log('\n▶ 安装（需要 sudo 密码）');
+      run(`sudo dpkg -i "${deb}"`);
+      console.log('已安装：ripple-desktop');
+    } else if (process.platform === 'darwin') {
+      const dmg = find(/\.dmg$/);
+      if (dmg) {
+        console.log('\n▶ macOS 无法静默安装，已打开 DMG，请拖入 Applications');
+        run(`open "${dmg}"`);
+      }
+    } else {
+      const exe = find(/\.exe$/);
+      if (exe) run(`"${exe}"`);
+    }
+  }
 }
 
 if (target === 'cli' || target === 'all') packCli();
