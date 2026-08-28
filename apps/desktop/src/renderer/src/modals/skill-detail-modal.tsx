@@ -4,11 +4,13 @@ import type { AiPatch, AiScoreResult, AiSuggestResult } from '@ripple/contract';
 import { DiffBlock, ScoreCard, SuggestList } from '../components/ai-panels.js';
 import { FileViewer } from '../components/file-viewer.js';
 import type { SkillFileEntry } from '../components/file-viewer.js';
+import { ScenarioPanel } from '../components/scenario-panel.js';
+import { UninstallModal } from './uninstall-modal.js';
 import { ripple } from '../ripple-api.js';
 import { errText, useStore } from '../store.js';
 import { AMBER, DANGER, GREEN_DEEP, INK, MONO, PRIMARY, dim, gradBtn, originLabel, outlineBtn } from '../ui.js';
 
-type AiView = 'files' | 'score' | 'optimize';
+type AiView = 'files' | 'score' | 'optimize' | 'scenario';
 
 /** 优化视图：建议清单 + patch diff（应用 / 全部应用 / 放弃） */
 function OptimizePanel({
@@ -165,6 +167,7 @@ export function SkillDetailModal(): ReactElement | null {
   const [optimizing, setOptimizing] = useState(false);
   const [applied, setApplied] = useState<Record<string, boolean>>({});
   const [applying, setApplying] = useState(false);
+  const [uninstallOpen, setUninstallOpen] = useState(false);
 
   const skill = skillDetail;
 
@@ -187,6 +190,7 @@ export function SkillDetailModal(): ReactElement | null {
     setOptimizing(false);
     setApplied({});
     setApplying(false);
+    setUninstallOpen(false);
     if (skill) void load(skill);
   }, [skill, load]);
 
@@ -195,6 +199,13 @@ export function SkillDetailModal(): ReactElement | null {
   const meta = snapshot?.skills[skill];
   const origin = snapshot?.installs.find((i) => i.skill === skill)?.origin;
   const close = (): void => store.setSkillDetail(null);
+  const loadAsset = (path: string): Promise<{ base64: string; mime: string; size: number }> =>
+    ripple.readSkillAsset(skill, path);
+  const goAiSettings = (): void => {
+    close();
+    store.setSettingsTab('ai');
+    store.setView({ kind: 'settings' });
+  };
 
   const onSave = async (path: string, content: string): Promise<void> => {
     try {
@@ -365,6 +376,25 @@ export function SkillDetailModal(): ReactElement | null {
             headBtn('← 返回文件', '', false, false, () => setAiView('files'))}
           {headBtn('评分', '评分中…', scoring, aiView === 'score', () => runScore(false))}
           {headBtn('优化', '生成中…', optimizing, aiView === 'optimize', runOptimize)}
+          {headBtn('场景', '', false, aiView === 'scenario', () => setAiView('scenario'))}
+          <span
+            className="rp-hover-danger"
+            onClick={() => setUninstallOpen(true)}
+            title="卸载技能（整技能或指定 Agent）"
+            style={{
+              border: '1px solid rgba(189,133,120,.4)',
+              color: DANGER,
+              fontWeight: 700,
+              fontSize: 11.5,
+              borderRadius: 8,
+              padding: '4px 13px',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              flex: 'none',
+            }}
+          >
+            卸载
+          </span>
           <span
             className="rp-hover-primary"
             onClick={close}
@@ -374,6 +404,7 @@ export function SkillDetailModal(): ReactElement | null {
           </span>
         </div>
         <div style={{ flex: 1, minHeight: 0, padding: '0 22px 18px' }}>
+          {aiView === 'scenario' && <ScenarioPanel skill={skill} onGoAiSettings={goAiSettings} />}
           {aiView === 'score' && score !== null && !scoring && (
             <ScoreCard result={score} scoring={scoring} onRescore={() => runScore(true)} />
           )}
@@ -413,11 +444,16 @@ export function SkillDetailModal(): ReactElement | null {
                   读取失败：{error}
                 </div>
               )}
-              {files !== null && <FileViewer files={files} height="100%" onSave={onSave} />}
+              {files !== null && (
+                <FileViewer files={files} height="100%" onSave={onSave} loadAsset={loadAsset} />
+              )}
             </>
           )}
         </div>
       </div>
+      {uninstallOpen && (
+        <UninstallModal skill={skill} onClose={() => setUninstallOpen(false)} onDone={close} />
+      )}
     </div>
   );
 }

@@ -1,6 +1,18 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { app, safeStorage } from 'electron';
+import type { AiUsageEntry } from '@ripple/contract';
+
+/** 单价表（美元 / 1M tokens；估算用，custom 模型不在表内则不计费） */
+const MODEL_PRICES: Record<string, { input: number; output: number }> = {
+  'gpt-4o-mini': { input: 0.15, output: 0.6 },
+  'gpt-4o': { input: 2.5, output: 10 },
+  'gpt-4.1-mini': { input: 0.4, output: 1.6 },
+  'deepseek-chat': { input: 0.27, output: 1.1 },
+  'deepseek-reasoner': { input: 0.55, output: 2.19 },
+};
+
+export type AiFeature = AiUsageEntry['feature'];
 
 export type AiProvider = 'openai' | 'deepseek' | 'custom';
 
@@ -33,15 +45,58 @@ const DEFAULT_CONFIG: AiConfigFile = {
 
 export class AiService {
   private file: string;
+  private usageFile: string;
+  private usage: AiUsageEntry[] = [];
   private config: AiConfigFile = { ...DEFAULT_CONFIG };
 
   constructor() {
     this.file = join(app.getPath('userData'), 'ai.json');
+    this.usageFile = join(app.getPath('userData'), 'ai-usage.json');
     try {
       this.config = { ...DEFAULT_CONFIG, ...(JSON.parse(readFileSync(this.file, 'utf8')) as AiConfigFile) };
     } catch {
       /* 首次使用 */
     }
+    try {
+      this.usage = JSON.parse(readFileSync(this.usageFile, 'utf8')) as AiUsageEntry[];
+    } catch {
+      /* 无历史用量 */
+    }
+  }
+
+  private recordUsage(feature: AiFeature, promptTokens: number, completionTokens: number): void {
+    const price = MODEL_PRICES[this.config.model];
+    const cost = price
+      ? (promptTokens * price.input + completionTokens * price.output) / 1_000_000
+      : null;
+    this.usage.unshift({
+      at: new Date().toISOString(),
+      feature,
+      model: this.config.model,
+      prompt_tokens: promptTokens,
+      completion_tokens: completionTokens,
+      cost_usd: cost,
+    });
+    if (this.usage.length > 200) this.usage.length = 200;
+    try {
+      mkdirSync(dirname(this.usageFile), { recursive: true });
+      writeFileSync(this.usageFile, JSON.stringify(this.usage));
+    } catch {
+      /* 用量写盘失败不影响功能 */
+    }
+  }
+
+  getUsage(): {
+    entries: AiUsageEntry[];
+    totals: { calls: number; prompt_tokens: number; completion_tokens: number; cost_usd: number };
+  } {
+    const totals = { calls: this.usage.length, prompt_tokens: 0, completion_tokens: 0, cost_usd: 0 };
+    for (const entry of this.usage) {
+      totals.prompt_tokens += entry.prompt_tokens;
+      totals.completion_tokens += entry.completion_tokens;
+      totals.cost_usd += entry.cost_usd ?? 0;
+    }
+    return { entries: this.usage, totals };
   }
 
   private save(): void {
@@ -93,7 +148,10 @@ export class AiService {
   }
 
   /** OpenAI 兼容 chat completions；json=true 时要求纯 JSON 输出并做剥离/重试 */
-  async chat(messages: Array<{ role: 'system' | 'user'; content: string }>, opts: { json?: boolean } = {}): Promise<string> {
+  async chat(
+    messages: Array<{ role: 'system' | 'user'; content: string }>,
+    opts: { json?: boolean; feature?: AiFeature } = {},
+  ): Promise<string> {
     const key = this.apiKey;
     if (!key) throw new Error('未配置 AI 服务商 API Key（设置 → AI 服务商）');
     const controller = new AbortController();
@@ -114,7 +172,15 @@ export class AiService {
         const body = await response.text().catch(() => '');
         throw new Error(`AI 服务返回 HTTP ${response.status}${body ? `：${body.slice(0, 200)}` : ''}`);
       }
-      const data = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
+      const data = (await response.json()) as {
+        choices?: Array<{ message?: { content?: string } }>;
+        usage?: { prompt_tokens?: number; completion_tokens?: number };
+      };
+      this.recordUsage(
+        opts.feature ?? 'test',
+        data.usage?.prompt_tokens ?? 0,
+        data.usage?.completion_tokens ?? 0,
+      );
       const content = data.choices?.[0]?.message?.content;
       if (!content) throw new Error('AI 服务返回空内容');
       return content;
@@ -124,11 +190,15 @@ export class AiService {
   }
 
   /** 调 JSON 任务：剥 code fence + 解析失败自动重试一次 */
-  async chatJson<T>(messages: Array<{ role: 'system' | 'user'; content: string }>, validate: (v: unknown) => T): Promise<T> {
+  async chatJson<T>(
+    messages: Array<{ role: 'system' | 'user'; content: string }>,
+    validate: (v: unknown) => T,
+    feature: AiFeature = 'test',
+  ): Promise<T> {
     let lastError: unknown;
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        const raw = await this.chat(messages, { json: true });
+        const raw = await this.chat(messages, { json: true, feature });
         const stripped = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
         return validate(JSON.parse(stripped));
       } catch (err) {
@@ -140,7 +210,7 @@ export class AiService {
 
   async test(): Promise<{ ok: boolean; message: string }> {
     try {
-      const reply = await this.chat([{ role: 'user', content: '仅回复"ok"两个字母。' }]);
+      const reply = await this.chat([{ role: 'user', content: '仅回复"ok"两个字母。' }], { feature: 'test' });
       return { ok: true, message: `连接成功（${this.config.model}）：${reply.slice(0, 40)}` };
     } catch (err) {
       return { ok: false, message: err instanceof Error ? err.message : String(err) };
@@ -153,6 +223,7 @@ export class AiService {
 import { createHash } from 'node:crypto';
 import {
   AI_PROMPT_VERSION,
+  SCENARIO_SYSTEM_PROMPT,
   SCORE_SYSTEM_PROMPT,
   SUGGEST_SYSTEM_PROMPT,
   buildSkillAiInput,
@@ -167,8 +238,10 @@ import {
   type SkillFileInput,
 } from '@ripple/skill-core';
 import {
+  aiScenarioRawSchema,
   aiScoreRawSchema,
   aiSuggestRawSchema,
+  type AiScenarioRaw,
   type AiScoreResult,
   type AiSuggestResult,
 } from '@ripple/contract';
@@ -238,6 +311,7 @@ export class SkillAiFeatures {
           const parsed = parseLlmJson(JSON.stringify(v), aiScoreRawSchema) ?? aiScoreRawSchema.parse(v);
           return parsed;
         },
+        'score',
       );
       const total = computeAiTotal(raw.dimensions);
       result = { ...raw, total, grade: gradeOfTotal(total), source: 'llm' };
@@ -257,6 +331,7 @@ export class SkillAiFeatures {
           { role: 'user', content: user },
         ],
         (v) => parseLlmJson(JSON.stringify(v), aiSuggestRawSchema) ?? aiSuggestRawSchema.parse(v),
+        'optimize',
       );
       // patch 落盘前校验：SKILL.md 必须保留合法 frontmatter 且 name 未改
       const originalName = (() => {
@@ -297,4 +372,19 @@ export class SkillAiFeatures {
       };
     }
   }
+}
+
+export async function analyzeScenario(
+  ai: AiService,
+  files: SkillFileInput[],
+): Promise<AiScenarioRaw> {
+  const { user } = buildSkillAiInput(files, 'score');
+  return ai.chatJson(
+    [
+      { role: 'system', content: SCENARIO_SYSTEM_PROMPT },
+      { role: 'user', content: user },
+    ],
+    (v) => parseLlmJson(JSON.stringify(v), aiScenarioRawSchema) ?? aiScenarioRawSchema.parse(v),
+    'scenario',
+  );
 }

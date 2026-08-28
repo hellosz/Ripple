@@ -55,9 +55,11 @@ export function parseRepoSpec(
   );
   if (urlMatch) {
     const host = urlMatch[1]!;
+    const isGithub = host === 'github.com' || host === 'www.github.com';
     return {
-      host,
-      provider: host === 'github.com' ? 'github' : 'gitlab',
+      // github.com 不保留 host（label/id 与简写形式一致，避免被误判 GitLab）
+      ...(isGithub ? {} : { host }),
+      provider: isGithub ? 'github' : 'gitlab',
       owner: urlMatch[2]!,
       repo: urlMatch[3]!,
       branch: urlMatch[4] ?? 'main',

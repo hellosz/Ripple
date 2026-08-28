@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { ReactElement } from 'react';
 import type { CommunitySkill } from '@ripple/hub';
+import { CommunityPreviewModal } from '../modals/community-preview-modal.js';
 import { ripple } from '../ripple-api.js';
 import { errText, useStore } from '../store.js';
 import {
@@ -65,6 +66,8 @@ export function CommunityView(): ReactElement {
   const store = useStore();
   const { snapshot, community, communityError, query } = store;
   const [busy, setBusy] = useState<Record<string, boolean>>({});
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [preview, setPreview] = useState<{ skill: CommunitySkill; label: string } | null>(null);
 
   const sources = snapshot?.sources ?? [];
   const defaultAgent = snapshot?.settings.default_agent ?? 'claude-code';
@@ -174,9 +177,25 @@ export function CommunityView(): ReactElement {
               (source.subdir ? ` › ${source.subdir}` : '')
             : sid;
           const list = bySource.get(sid) ?? [];
+          const closed = !!collapsed[sid];
           return (
             <div key={sid} style={{ marginBottom: 18 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '2px 4px 8px' }}>
+              <div
+                className="rp-hover-row"
+                onClick={() => setCollapsed((m) => ({ ...m, [sid]: !m[sid] }))}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 9,
+                  padding: '6px 6px',
+                  borderRadius: 9,
+                  cursor: 'pointer',
+                  marginBottom: closed ? 0 : 4,
+                }}
+              >
+                <span style={{ fontSize: 10, color: dim(0.45), width: 12, flex: 'none' }}>
+                  {closed ? '▸' : '▾'}
+                </span>
                 <span style={{ fontFamily: MONO, fontWeight: 800, fontSize: 13, color: INK, whiteSpace: 'nowrap' }}>
                   {label}
                 </span>
@@ -189,12 +208,16 @@ export function CommunityView(): ReactElement {
                 <span style={{ flex: 1 }} />
                 <span style={{ fontSize: 11.5, color: dim(0.45), whiteSpace: 'nowrap' }}>{list.length} 个技能</span>
               </div>
+              {!closed && (
               <div style={{ ...cardStyle, overflow: 'hidden' }}>
                 {list.map((c, idx) => {
                   const key = `${c.sourceId}\n${c.name}`;
                   return (
                     <div
                       key={c.name}
+                      className="rp-hover-row"
+                      onClick={() => setPreview({ skill: c, label })}
+                      title="点击打开只读预览"
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -202,6 +225,7 @@ export function CommunityView(): ReactElement {
                         padding: '13px 18px',
                         borderTop: idx === 0 ? undefined : '1px dashed rgba(63,68,56,.07)',
                         fontSize: 12.5,
+                        cursor: 'pointer',
                       }}
                     >
                       <div style={{ minWidth: 0, flex: 1 }}>
@@ -270,7 +294,10 @@ export function CommunityView(): ReactElement {
                       {!c.installed && (
                         <span
                           className="rp-btn-outline"
-                          onClick={() => install(c, false)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            install(c, false);
+                          }}
                           style={{
                             ...outlineBtn,
                             fontSize: 11.5,
@@ -284,7 +311,10 @@ export function CommunityView(): ReactElement {
                       )}
                       {c.installed && c.changed && (
                         <span
-                          onClick={() => install(c, true)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            install(c, true);
+                          }}
                           style={{
                             border: `1px solid ${REPO_BLUE}66`,
                             color: REPO_BLUE,
@@ -305,9 +335,17 @@ export function CommunityView(): ReactElement {
                   );
                 })}
               </div>
+              )}
             </div>
           );
         })}
+      {preview !== null && (
+        <CommunityPreviewModal
+          skill={preview.skill}
+          sourceLabel={preview.label}
+          onClose={() => setPreview(null)}
+        />
+      )}
     </>
   );
 }

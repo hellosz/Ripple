@@ -1,5 +1,5 @@
 /** prompt 版本（进缓存 key：模板变更后旧缓存失效） */
-export const AI_PROMPT_VERSION = '2026-08-21.1';
+export const AI_PROMPT_VERSION = '2026-08-28.1';
 
 export const SCORE_SYSTEM_PROMPT = `你是 AI Agent 技能包（Agent Skill）的资深评审员。技能包是含 SKILL.md（YAML frontmatter: name/description + Markdown 正文）的目录，可带 references/、scripts/、assets/。你的评分依据 Anthropic Agent Skills 官方最佳实践与 agentskills.io 规范。
 
@@ -30,3 +30,14 @@ export const SUGGEST_SYSTEM_PROMPT = `你是 AI Agent 技能包（Agent Skill）
 
 只输出一个 JSON 对象，不要任何其他文字或 Markdown 代码围栏。格式：
 {"suggestions":[{"type":"business|technical","title":"...","detail":"..."}],"patches":[{"path":"SKILL.md","new_content":"...","rationale":"..."}]}`;
+
+export const SCENARIO_SYSTEM_PROMPT = `你是 AI Agent 技能包的应用场景分析师。根据给定技能包内容，分析它可能的应用场景，输出四类中文标签与一段概要：
+- business（业务域）：该技能服务于什么业务领域（如 电商运营、数据分析、研发效能、财务、客服）
+- role（岗位）：谁会用它（如 后端工程师、数据分析师、产品经理、运营）
+- scene（场景）：在什么场景下被触发使用（如 代码评审、报表生成、发布上线、故障排查）
+- tool（工具）：它依赖或操作的工具/平台（如 Git、PostgreSQL、飞书、Excel；没有明确工具可为空数组）
+
+要求：标签精炼（2-8 字），只基于材料事实，不虚构；business/role/scene 各 1-6 个，tool 0-6 个；summary 不超过 120 字，说明"这个技能帮谁在什么场景解决什么问题"。
+
+只输出一个 JSON 对象，不要任何其他文字或代码围栏。格式：
+{"tags":{"business":["..."],"role":["..."],"scene":["..."],"tool":["..."]},"summary":"..."}`;

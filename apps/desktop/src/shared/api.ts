@@ -1,6 +1,7 @@
 import type {
   BackupRecord,
   CommunitySkill,
+  ScenarioAnalysis,
   DetectedAgent,
   DistMode,
   HistoryEntry,
@@ -17,6 +18,7 @@ import type {
   AiPatch,
   AiScoreResult,
   AiSuggestResult,
+  AiUsageEntry,
   Collection,
   SkillListItem,
   User,
@@ -54,6 +56,8 @@ export interface HubSnapshot {
   skills: Record<string, { version: string | null; description: string | null }>;
   /** 全局操作日志（倒序） */
   oplog: OpEntry[];
+  /** AI 应用场景分析（skill → 结果） */
+  scenarios: Record<string, ScenarioAnalysis>;
 }
 
 export interface AuthState {
@@ -84,8 +88,10 @@ export interface DesktopApi {
   applyAllToAgent(agentId: string, skills?: string[]): Promise<{ count: number }>;
   /** 批量：移除某 Agent 的全部全局 placement（SSOT 保留） */
   removeAllFromAgent(agentId: string): Promise<{ count: number }>;
-  /** 本地 Skill 详情：读取全部文本文件（SKILL.md 置顶） */
-  readSkillFiles(skill: string): Promise<Array<{ path: string; content: string; size: number }>>;
+  /** 本地 Skill 详情：读取全部文件（文本含内容；二进制/超限仅列条目，binary=true，内容经 readSkillAsset 预览） */
+  readSkillFiles(
+    skill: string,
+  ): Promise<Array<{ path: string; content: string; size: number; binary?: boolean }>>;
   /** 编辑保存：写回 SSOT 并重建 copy 型分发 */
   writeSkillFile(skill: string, path: string, content: string): Promise<void>;
   /** 社区开源快照（逐来源技能 + 指纹比对 + 更新时间，本地即可用无需登录） */
@@ -134,6 +140,15 @@ export interface DesktopApi {
   aiOptimize(skill: string): Promise<AiSuggestResult>;
   /** 应用优化补丁（写回 SSOT 并重建 copy 分发） */
   aiApplyPatches(skill: string, patches: AiPatch[]): Promise<{ applied: number }>;
+  /** 应用场景分析（本地持久化；指纹一致时直接返回缓存，force 强制重新生成） */
+  aiScenario(skill: string, force?: boolean): Promise<ScenarioAnalysis & { stale: boolean }>;
+  /** AI 调用用量与费用（最近 200 条 + 合计） */
+  aiUsage(): Promise<{
+    entries: AiUsageEntry[];
+    totals: { calls: number; prompt_tokens: number; completion_tokens: number; cost_usd: number };
+  }>;
+  /** 读取技能内素材文件（含二进制，base64+mime，≤5MB），供预览 */
+  readSkillAsset(skill: string, path: string): Promise<{ base64: string; mime: string; size: number }>;
 
   // ---- 应用 ----
   appVersion(): Promise<string>;

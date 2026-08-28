@@ -14,6 +14,7 @@ import {
   type SkillPayload,
 } from './sources.js';
 import { treeHashFromDir } from './fingerprint.js';
+import type { ScenarioAnalysis } from './types.js';
 import { defaultState, loadState, saveState } from './state.js';
 import type {
   BackupRecord,
@@ -308,9 +309,12 @@ export class RippleHub {
     for (const record of affected) this.removeDistribution(record);
     this.state.installs = this.state.installs.filter((i) => !affected.includes(i));
     // 最后一处卸载：仅删除 hub 自己写入的 SSOT 内容（共享目录中他人内容不动）
-    if (!this.state.installs.some((i) => i.skill === skill) && this.state.owned[skill]) {
-      removePath(this.skillDir(skill));
-      delete this.state.owned[skill];
+    if (!this.state.installs.some((i) => i.skill === skill)) {
+      delete this.state.scenarios[skill];
+      if (this.state.owned[skill]) {
+        removePath(this.skillDir(skill));
+        delete this.state.owned[skill];
+      }
     }
     this.addHistory(skill, {
       action: 'uninstall',
@@ -496,22 +500,70 @@ export class RippleHub {
     return affected.length;
   }
 
+  // ---- 场景分析持久化 ----
+
+  fingerprintOf(skill: string): string | null {
+    const dir = this.skillDir(skill);
+    return existsSync(dir) ? treeHashFromDir(dir) : null;
+  }
+
+  getScenario(skill: string): ScenarioAnalysis | null {
+    return this.state.scenarios[skill] ?? null;
+  }
+
+  saveScenario(skill: string, analysis: ScenarioAnalysis): void {
+    this.state.scenarios[skill] = analysis;
+    this.logOp('场景分析', skill, analysis.summary.slice(0, 40));
+    this.save();
+  }
+
+  // ---- 素材预览 ----
+
+  /** 读取单个素材文件（含二进制），供预览；5MB 上限 */
+  readSkillAsset(
+    skill: string,
+    relPath: string,
+  ): { base64: string; mime: string; size: number } {
+    if (relPath.startsWith('/') || relPath.split('/').includes('..')) {
+      throw new Error(`Unsafe path: ${relPath}`);
+    }
+    const full = join(this.skillDir(skill), relPath);
+    if (!existsSync(full)) throw new Error(`File not found: ${relPath}`);
+    const data = readFileSync(full);
+    if (data.byteLength > 5 * 1024 * 1024) throw new Error('文件超过 5MB 预览上限');
+    const ext = relPath.slice(relPath.lastIndexOf('.') + 1).toLowerCase();
+    const MIME: Record<string, string> = {
+      png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
+      webp: 'image/webp', avif: 'image/avif', svg: 'image/svg+xml', ico: 'image/x-icon',
+      pdf: 'application/pdf', woff: 'font/woff', woff2: 'font/woff2', ttf: 'font/ttf',
+    };
+    return {
+      base64: data.toString('base64'),
+      mime: MIME[ext] ?? 'application/octet-stream',
+      size: data.byteLength,
+    };
+  }
+
   // ---- 编辑器后端 ----
 
   /** 读取技能全部文本文件（跳过二进制与超限文件） */
-  readSkillFiles(skill: string): Array<{ path: string; content: string; size: number }> {
+  readSkillFiles(skill: string): Array<{ path: string; content: string; size: number; binary?: boolean }> {
     const dir = this.skillDir(skill);
     if (!existsSync(dir)) throw new Error(`Skill '${skill}' not in central storage`);
     const files = readDirFiles(dir);
     const decoder = new TextDecoder('utf-8', { fatal: true });
-    const out: Array<{ path: string; content: string; size: number }> = [];
+    const out: Array<{ path: string; content: string; size: number; binary?: boolean }> = [];
     for (const [rel, data] of Object.entries(files)) {
-      if (data.byteLength > 512 * 1024) continue;
-      try {
-        out.push({ path: rel, content: decoder.decode(data), size: data.byteLength });
-      } catch {
-        /* 二进制跳过 */
+      if (data.byteLength <= 512 * 1024) {
+        try {
+          out.push({ path: rel, content: decoder.decode(data), size: data.byteLength });
+          continue;
+        } catch {
+          /* 非 UTF-8 → 按二进制列出 */
+        }
       }
+      // 二进制/超限文件仅列出条目（内容经 readSkillAsset 按需读取预览）
+      out.push({ path: rel, content: '', size: data.byteLength, binary: true });
     }
     return out.sort((a, b) => (a.path === 'SKILL.md' ? -1 : b.path === 'SKILL.md' ? 1 : a.path.localeCompare(b.path)));
   }

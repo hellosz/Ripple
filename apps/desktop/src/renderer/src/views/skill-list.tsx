@@ -3,6 +3,8 @@ import type { CSSProperties, ReactElement } from 'react';
 import type { CommunitySkill, InstallRecord } from '@ripple/hub';
 import type { AgentSummary } from '../../../shared/api.js';
 import { AgentIcon } from '../agent-icons.js';
+import { SCENARIO_GROUPS } from '../components/scenario-panel.js';
+import { UninstallModal } from '../modals/uninstall-modal.js';
 import { ripple } from '../ripple-api.js';
 import { targetKey, useStore } from '../store.js';
 import {
@@ -35,12 +37,16 @@ interface SkillRowData {
   origin: string;
 }
 
-/** Agent 存在矩阵单元的状态 */
-type CellStatus =
-  | { kind: 'shared'; enabled: boolean }
-  | { kind: 'dedicated'; enabled: boolean }
-  | { kind: 'implicit-shared' }
-  | { kind: 'absent' };
+/** Agent 存在矩阵单元的状态：通用（共享目录）与专属（私有目录）双态并存 */
+interface CellStatus {
+  /** 经 ~/.agents/skills 共享目录标准分发 */
+  shared: boolean;
+  /** symlink/copy 到 Agent 私有目录 */
+  dedicated: boolean;
+  /** 未纳管但经共享目录标准自动可用 */
+  implicit: boolean;
+  enabled: boolean;
+}
 
 /** 列表头 Agent 批量操作会话：menu=选动作，apply/remove=二次确认 */
 interface AgentActionState {
@@ -65,6 +71,7 @@ export function SkillListView(): ReactElement {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [agentAction, setAgentAction] = useState<AgentActionState | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
+  const [uninstallFor, setUninstallFor] = useState<string | null>(null);
 
   if (!snapshot) {
     return <div style={{ textAlign: 'center', padding: '80px 0', color: dim(0.45) }}>加载中…</div>;
@@ -141,17 +148,20 @@ export function SkillListView(): ReactElement {
   };
 
   // ---- 存在矩阵 ----
-  const cellStatus = (skill: string, a: AgentSummary): CellStatus => {
+  const cellStatus = (skill: string, a: AgentSummary): CellStatus | null => {
     const recs = snapshot.installs.filter((i) => i.skill === skill && i.agent === a.id);
     if (recs.length > 0) {
-      const enabled = recs.some((i) => i.enabled);
-      if (recs.some((i) => i.mode === 'shared')) return { kind: 'shared', enabled };
-      return { kind: 'dedicated', enabled };
+      return {
+        shared: recs.some((i) => i.mode === 'shared'),
+        dedicated: recs.some((i) => i.mode !== 'shared'),
+        implicit: false,
+        enabled: recs.some((i) => i.enabled),
+      };
     }
     if (a.sharedDirSupport && storageShared && skill in snapshot.skills) {
-      return { kind: 'implicit-shared' };
+      return { shared: true, dedicated: false, implicit: true, enabled: true };
     }
-    return { kind: 'absent' };
+    return null;
   };
 
   const fillAgent = (skill: string, a: AgentSummary): void => {
@@ -162,19 +172,17 @@ export function SkillListView(): ReactElement {
     });
   };
 
-  const tagStyle = (bg: string, outline: boolean): CSSProperties => ({
+  /** placement 记号：通用=圆点（绿），专属=方块（橄榄）；双态可同时出现 */
+  const markStyle = (color: string, square: boolean, right: boolean, outline: boolean): CSSProperties => ({
     position: 'absolute',
-    right: -5,
-    bottom: -5,
-    fontSize: 8,
-    fontWeight: 800,
-    lineHeight: 1,
-    padding: '2px 3px',
-    borderRadius: 5,
-    background: outline ? '#ffffff' : bg,
-    color: outline ? bg : '#ffffff',
-    border: `1px solid ${bg}`,
-    fontFamily: "'Noto Sans SC',sans-serif",
+    bottom: -3,
+    ...(right ? { right: -3 } : { left: -3 }),
+    width: 9,
+    height: 9,
+    borderRadius: square ? 2.5 : 999,
+    background: outline ? '#ffffff' : color,
+    border: `1.5px solid ${color}`,
+    boxSizing: 'border-box',
   });
 
   const renderCell = (row: SkillRowData, a: AgentSummary): ReactElement => {
@@ -189,7 +197,7 @@ export function SkillListView(): ReactElement {
       justifyContent: 'center',
       flex: 'none',
     };
-    if (st.kind === 'absent') {
+    if (st === null) {
       return (
         <span
           key={a.id}
@@ -205,35 +213,70 @@ export function SkillListView(): ReactElement {
         </span>
       );
     }
-    if (st.kind === 'implicit-shared') {
-      return (
-        <span
-          key={a.id}
-          title={`${a.name} · 通用（经共享目录标准自动可用）`}
-          style={{ ...base, border: `1.5px solid rgba(127,165,136,.6)` }}
-        >
-          <AgentIcon agentId={a.id} name={a.name} size={15} />
-          <span style={tagStyle(GREEN_DEEP, true)}>通</span>
-        </span>
+    const tipLines: string[] = [];
+    if (st.shared) {
+      tipLines.push(
+        st.implicit
+          ? '○ 通用 · 经 ~/.agents/skills 共享目录标准自动可用'
+          : '● 通用 · 分发于 ~/.agents/skills（共享目录标准）',
       );
     }
-    const shared = st.kind === 'shared';
-    const tip =
-      `${a.name} · 已安装（${shared ? '通用' : '专属'}）` + (st.enabled ? '' : ' · 已禁用');
+    if (st.dedicated) tipLines.push(`■ 专属 · 分发于 ~/${a.globalRelPath}（仅 ${a.name}）`);
+    if (!st.enabled) tipLines.push('已禁用');
     return (
       <span
         key={a.id}
-        title={tip}
+        title={`${a.name}\n${tipLines.join('\n')}`}
         style={{
           ...base,
-          border: `1px solid ${shared ? 'rgba(127,165,136,.5)' : 'rgba(107,127,67,.4)'}`,
-          background: shared ? 'rgba(127,165,136,.12)' : 'rgba(147,168,107,.14)',
+          border: `1px solid ${st.dedicated ? 'rgba(107,127,67,.45)' : 'rgba(127,165,136,.5)'}`,
+          background: st.dedicated
+            ? st.shared
+              ? 'linear-gradient(135deg, rgba(127,165,136,.14) 50%, rgba(147,168,107,.18) 50%)'
+              : 'rgba(147,168,107,.14)'
+            : st.implicit
+              ? undefined
+              : 'rgba(127,165,136,.12)',
           opacity: st.enabled ? 1 : 0.45,
         }}
       >
         <AgentIcon agentId={a.id} name={a.name} size={15} />
-        <span style={tagStyle(shared ? GREEN_DEEP : PRIMARY, false)}>{shared ? '通' : '专'}</span>
+        {st.shared && <span style={markStyle(GREEN_DEEP, false, true, st.implicit)} />}
+        {st.dedicated && <span style={markStyle(PRIMARY, true, false, false)} />}
       </span>
+    );
+  };
+
+  /** 场景分析标签摘要（业务/岗位/场景/工具各取首个，最多 3 个） */
+  const renderScenarioChips = (skill: string): ReactElement | null => {
+    const sc = snapshot.scenarios[skill];
+    if (!sc) return null;
+    const picks = SCENARIO_GROUPS.flatMap((g) => {
+      const tag = sc.tags[g.key][0];
+      return tag ? [{ tag, color: g.color, group: g.name }] : [];
+    }).slice(0, 3);
+    if (picks.length === 0) return null;
+    return (
+      <div style={{ display: 'flex', gap: 5, marginTop: 5, overflow: 'hidden' }}>
+        {picks.map((p) => (
+          <span
+            key={`${p.group}\n${p.tag}`}
+            title={`${p.group} · ${p.tag}（AI 场景分析）`}
+            style={{
+              fontSize: 9.5,
+              fontWeight: 700,
+              padding: '1px 7px',
+              borderRadius: 999,
+              background: `${p.color}14`,
+              color: p.color,
+              whiteSpace: 'nowrap',
+              flex: 'none',
+            }}
+          >
+            {p.tag}
+          </span>
+        ))}
+      </div>
     );
   };
 
@@ -316,6 +359,7 @@ export function SkillListView(): ReactElement {
                 {r.description || '暂无简介'}
               </span>
             </div>
+            {renderScenarioChips(r.name)}
           </div>
 
           {/* Agent 存在矩阵 */}
@@ -352,6 +396,23 @@ export function SkillListView(): ReactElement {
                 }}
               >
                 历史
+              </span>
+              <span
+                className="rp-hover-danger"
+                onClick={() => setUninstallFor(r.name)}
+                title="卸载技能（整技能或指定 Agent）"
+                style={{
+                  border: '1px solid rgba(63,68,56,.12)',
+                  color: dim(0.6),
+                  fontSize: 12,
+                  borderRadius: 8,
+                  padding: '6px 12px',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  flex: 'none',
+                }}
+              >
+                卸载
               </span>
             </div>
             <span
@@ -752,6 +813,9 @@ export function SkillListView(): ReactElement {
       )}
 
       {renderAgentActionModal()}
+      {uninstallFor !== null && (
+        <UninstallModal skill={uninstallFor} onClose={() => setUninstallFor(null)} />
+      )}
     </>
   );
 }

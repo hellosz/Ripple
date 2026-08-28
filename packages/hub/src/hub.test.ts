@@ -590,13 +590,14 @@ describe('desktop-polish-v2：项目清理 / 批量操作 / 编辑器后端', ()
     expect(hub.state.installs.filter((i) => i.agent === 'claude-code')).toHaveLength(2);
   });
 
-  it('readSkillFiles：SKILL.md 置顶、跳过二进制', () => {
+  it('readSkillFiles：SKILL.md 置顶、二进制以 binary 条目列出（内容留空）', () => {
     hub.install(payload('e-skill'), [{ agent: 'claude-code' }]);
     writeFileSync(join(home, '.ripple', 'skills', 'e-skill', 'logo.png'), new Uint8Array([0x89, 0x50, 0x00, 0xff]));
     const files = hub.readSkillFiles('e-skill');
     expect(files[0]!.path).toBe('SKILL.md');
-    expect(files.map((f) => f.path)).not.toContain('logo.png');
-    expect(files.map((f) => f.path)).toContain('references/guide.md');
+    const logo = files.find((f) => f.path === 'logo.png');
+    expect(logo).toMatchObject({ binary: true, content: '', size: 4 });
+    expect(files.find((f) => f.path === 'references/guide.md')?.binary).toBeUndefined();
   });
 
   it('writeSkillFile：拒绝路径穿越、写回后 copy 分发同步', () => {
@@ -685,5 +686,74 @@ describe('community-sources：指纹 / origin / 社区更新', () => {
     );
     snap = await h.communitySnapshot();
     expect(snap[0]!.changed).toBe(false);
+  });
+});
+
+describe('desktop-refinements-v3：场景分析 / 素材预览 / github.com 来源', () => {
+  it('场景分析持久化：save/get roundtrip，重载后仍在，卸载最后落点时清理', () => {
+    hub.install(payload('sc-skill'), [{ agent: 'claude-code' }]);
+    const fingerprint = hub.fingerprintOf('sc-skill')!;
+    expect(fingerprint).toBeTruthy();
+    const analysis = {
+      tags: { business: ['研发效能'], role: ['后端工程师'], scene: ['代码评审'], tool: ['Git'] },
+      summary: '帮助工程师在评审场景快速定位问题。',
+      fingerprint,
+      at: new Date().toISOString(),
+    };
+    hub.saveScenario('sc-skill', analysis);
+    expect(hub.getScenario('sc-skill')).toEqual(analysis);
+    // 重载持久化
+    const hub2 = new RippleHub({ homeDir: home });
+    expect(hub2.getScenario('sc-skill')).toEqual(analysis);
+    // 卸载最后落点后清理
+    hub.uninstall('sc-skill', { agent: 'claude-code' });
+    expect(hub.getScenario('sc-skill')).toBeNull();
+    expect(new RippleHub({ homeDir: home }).getScenario('sc-skill')).toBeNull();
+  });
+
+  it('fingerprintOf：内容变更后指纹变化；不存在的技能返回 null', () => {
+    hub.install(payload('fp-skill'), [{ agent: 'claude-code' }]);
+    const before = hub.fingerprintOf('fp-skill')!;
+    hub.writeSkillFile('fp-skill', 'references/guide.md', '# changed');
+    expect(hub.fingerprintOf('fp-skill')).not.toBe(before);
+    expect(hub.fingerprintOf('nope')).toBeNull();
+  });
+
+  it('readSkillAsset：二进制返回 base64+mime，未知扩展名为 octet-stream', () => {
+    const p = payload('asset-skill');
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+    p.files['assets/logo.png'] = png;
+    p.files['assets/data.bin'] = new Uint8Array([1, 2, 3]);
+    hub.install(p, [{ agent: 'claude-code' }]);
+    const asset = hub.readSkillAsset('asset-skill', 'assets/logo.png');
+    expect(asset.mime).toBe('image/png');
+    expect(asset.size).toBe(png.length);
+    expect(new Uint8Array(Buffer.from(asset.base64, 'base64'))).toEqual(png);
+    expect(hub.readSkillAsset('asset-skill', 'assets/data.bin').mime).toBe('application/octet-stream');
+  });
+
+  it('readSkillAsset：路径穿越与绝对路径拒绝，不存在文件报错', () => {
+    hub.install(payload('asset-guard'), [{ agent: 'claude-code' }]);
+    expect(() => hub.readSkillAsset('asset-guard', '../other/SKILL.md')).toThrow(/Unsafe path/);
+    expect(() => hub.readSkillAsset('asset-guard', '/etc/passwd')).toThrow(/Unsafe path/);
+    expect(() => hub.readSkillAsset('asset-guard', 'assets/none.png')).toThrow(/not found/);
+  });
+
+  it('parseRepoSpec：github.com URL 不保留 host，label 与简写一致', () => {
+    const fromUrl = parseRepoSpec('https://github.com/anthropics/skills#main:packs');
+    expect(fromUrl).toEqual({
+      provider: 'github',
+      owner: 'anthropics',
+      repo: 'skills',
+      branch: 'main',
+      subdir: 'packs',
+    });
+    expect('host' in fromUrl).toBe(false);
+    expect(parseRepoSpec('https://www.github.com/a/b')).not.toHaveProperty('host');
+    // 私服 GitLab 仍保留 host
+    expect(parseRepoSpec('https://gitlab.corp.local/team/skills')).toHaveProperty(
+      'host',
+      'gitlab.corp.local',
+    );
   });
 });

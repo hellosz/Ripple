@@ -65,3 +65,27 @@ export const aiSuggestResultSchema = aiSuggestRawSchema.extend({
   source: aiSourceSchema,
 });
 export type AiSuggestResult = z.infer<typeof aiSuggestResultSchema>;
+
+/** 应用场景分析（LLM 原始输出） */
+export const aiScenarioRawSchema = z.object({
+  tags: z.object({
+    business: z.array(z.string().min(1).max(20)).min(1).max(6),
+    role: z.array(z.string().min(1).max(20)).min(1).max(6),
+    scene: z.array(z.string().min(1).max(20)).min(1).max(6),
+    tool: z.array(z.string().min(1).max(20)).max(6),
+  }),
+  summary: z.string().min(1).max(200),
+});
+export type AiScenarioRaw = z.infer<typeof aiScenarioRawSchema>;
+
+/** AI 调用用量日志条目 */
+export const aiUsageEntrySchema = z.object({
+  at: z.string(),
+  feature: z.enum(['score', 'optimize', 'scenario', 'test']),
+  model: z.string(),
+  prompt_tokens: z.number().int().nonnegative(),
+  completion_tokens: z.number().int().nonnegative(),
+  /** 估算费用（美元）；custom 服务商无单价表时为 null */
+  cost_usd: z.number().nonnegative().nullable(),
+});
+export type AiUsageEntry = z.infer<typeof aiUsageEntrySchema>;

@@ -9,7 +9,7 @@ import {
   UPDATER_CHANNEL,
 } from '../shared/api.js';
 import { DesktopServices } from './services.js';
-import { AiService, SkillAiFeatures, type AiProvider } from './ai.js';
+import { AiService, SkillAiFeatures, analyzeScenario, type AiProvider } from './ai.js';
 import type { AiPatch } from '@ripple/contract';
 
 const { autoUpdater } = electronUpdater;
@@ -226,6 +226,20 @@ const handlers: Record<string, RpcHandler> = {
   aiTest: () => aiService.test(),
   aiScore: (skill: string) => skillAi.score(services.hub.readSkillFiles(skill)),
   aiOptimize: (skill: string) => skillAi.optimize(services.hub.readSkillFiles(skill)),
+  aiScenario: async (skill: string, force?: boolean) => {
+    const fingerprint = services.hub.fingerprintOf(skill);
+    if (!fingerprint) throw new Error(`Skill '${skill}' not in central storage`);
+    const existing = services.hub.getScenario(skill);
+    if (existing && !force) {
+      return { ...existing, stale: existing.fingerprint !== fingerprint };
+    }
+    const raw = await analyzeScenario(aiService, services.hub.readSkillFiles(skill));
+    const analysis = { ...raw, fingerprint, at: new Date().toISOString() };
+    services.hub.saveScenario(skill, analysis);
+    return { ...analysis, stale: false };
+  },
+  aiUsage: () => aiService.getUsage(),
+  readSkillAsset: (skill: string, path: string) => services.hub.readSkillAsset(skill, path),
   aiApplyPatches: (skill: string, patches: AiPatch[]) => {
     let applied = 0;
     for (const patch of patches) {

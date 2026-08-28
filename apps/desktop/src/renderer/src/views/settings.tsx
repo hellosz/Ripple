@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { CSSProperties, ReactElement } from 'react';
 import type { RepoSkill } from '@ripple/hub';
+import type { AiUsageEntry } from '@ripple/contract';
 import type { AiProvider } from '../../../shared/api.js';
 import { AgentIcon } from '../agent-icons.js';
 import { ripple } from '../ripple-api.js';
@@ -579,7 +580,7 @@ function AiTab(): ReactElement {
       <div style={panelStyle}>
         <div style={{ fontWeight: 900, fontSize: 14, color: INK, marginBottom: 4 }}>AI 服务商</div>
         <p style={{ margin: '0 0 14px', fontSize: 12, color: dim(0.55), lineHeight: 1.7 }}>
-          用于技能「评分」与「优化」。支持 OpenAI、DeepSeek 或任意 OpenAI 兼容服务（自定义 Base URL / 模型）。
+          用于技能「评分」「优化」与「场景分析」。支持 OpenAI、DeepSeek 或任意 OpenAI 兼容服务（自定义 Base URL / 模型）。
         </p>
         <div style={aiFieldRow}>
           <span style={aiLabel}>服务商</span>
@@ -655,6 +656,110 @@ function AiTab(): ReactElement {
       >
         ✓ API Key 经系统安全存储（safeStorage）加密保存，仅在本机主进程使用，不上传服务器
       </div>
+      <AiUsagePanel />
+    </div>
+  );
+}
+
+const AI_FEATURE_LABELS: Record<AiUsageEntry['feature'], string> = {
+  score: '评分',
+  optimize: '优化',
+  scenario: '场景分析',
+  test: '连接测试',
+};
+
+const fmtCost = (n: number | null): string => (n === null ? '—' : `$${n.toFixed(4)}`);
+
+/** AI 使用日志与费用：调用明细（倒序，最近 200 条）+ 累计合计 */
+function AiUsagePanel(): ReactElement {
+  const [usage, setUsage] = useState<{
+    entries: AiUsageEntry[];
+    totals: { calls: number; prompt_tokens: number; completion_tokens: number; cost_usd: number };
+  } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = (): void => {
+    ripple
+      .aiUsage()
+      .then(setUsage)
+      .catch((err: unknown) => setError(errText(err)));
+  };
+  useEffect(load, []);
+
+  const cell: CSSProperties = { padding: '6px 10px', whiteSpace: 'nowrap' };
+  const totals = usage?.totals;
+
+  return (
+    <div style={panelStyle}>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
+        <span style={{ fontWeight: 900, fontSize: 14, color: INK }}>使用日志与费用</span>
+        <span style={{ flex: 1 }} />
+        <span
+          className="rp-btn-outline"
+          onClick={load}
+          style={{ ...outlineBtn, fontSize: 11.5, padding: '5px 13px' }}
+        >
+          ⟳ 刷新
+        </span>
+      </div>
+      <p style={{ margin: '0 0 12px', fontSize: 12, color: dim(0.55), lineHeight: 1.7 }}>
+        每次 AI 调用（评分 / 优化 / 场景分析 / 连接测试）记录 tokens 与估算费用（内置 OpenAI / DeepSeek
+        单价表；自定义服务商仅记 tokens）。本地保留最近 200 条。
+      </p>
+      {totals && (
+        <div style={{ display: 'flex', gap: 20, marginBottom: 12, fontSize: 12.5 }}>
+          <span>
+            调用 <b style={{ color: INK }}>{totals.calls}</b> 次
+          </span>
+          <span>
+            输入 <b style={{ color: INK, fontFamily: MONO }}>{totals.prompt_tokens.toLocaleString()}</b> tokens
+          </span>
+          <span>
+            输出 <b style={{ color: INK, fontFamily: MONO }}>{totals.completion_tokens.toLocaleString()}</b> tokens
+          </span>
+          <span>
+            累计费用 <b style={{ color: PRIMARY, fontFamily: MONO }}>${totals.cost_usd.toFixed(4)}</b>
+          </span>
+        </div>
+      )}
+      {error !== null && <div style={{ fontSize: 12, color: DANGER }}>加载失败：{error}</div>}
+      {usage !== null && usage.entries.length === 0 && (
+        <div style={{ fontSize: 12.5, color: dim(0.45), padding: '10px 0' }}>
+          暂无调用记录：执行一次评分 / 优化 / 场景分析后可在此查看用量。
+        </div>
+      )}
+      {usage !== null && usage.entries.length > 0 && (
+        <div style={{ maxHeight: 300, overflowY: 'auto', border: '1px solid rgba(63,68,56,.08)', borderRadius: 10 }}>
+          <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 12 }}>
+            <thead>
+              <tr style={{ background: 'rgba(147,168,107,.08)', color: dim(0.55), textAlign: 'left' }}>
+                <th style={cell}>时间</th>
+                <th style={cell}>功能</th>
+                <th style={cell}>模型</th>
+                <th style={{ ...cell, textAlign: 'right' }}>输入 tokens</th>
+                <th style={{ ...cell, textAlign: 'right' }}>输出 tokens</th>
+                <th style={{ ...cell, textAlign: 'right' }}>费用</th>
+              </tr>
+            </thead>
+            <tbody>
+              {usage.entries.map((e, idx) => (
+                <tr key={`${e.at}-${idx}`} style={{ borderTop: '1px dashed rgba(63,68,56,.07)' }}>
+                  <td style={{ ...cell, fontFamily: MONO, color: dim(0.5) }}>{fmtTime(e.at, true)}</td>
+                  <td style={cell}>{AI_FEATURE_LABELS[e.feature]}</td>
+                  <td style={{ ...cell, fontFamily: MONO, color: dim(0.6) }}>{e.model}</td>
+                  <td style={{ ...cell, textAlign: 'right', fontFamily: MONO }}>{e.prompt_tokens.toLocaleString()}</td>
+                  <td style={{ ...cell, textAlign: 'right', fontFamily: MONO }}>
+                    {e.completion_tokens.toLocaleString()}
+                  </td>
+                  <td style={{ ...cell, textAlign: 'right', fontFamily: MONO, color: PRIMARY }}>
+                    {fmtCost(e.cost_usd)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

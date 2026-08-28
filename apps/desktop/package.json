@@ -20,18 +20,18 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.4.0",
+    "diff": "^9.0.0",
     "electron": "^37.0.0",
     "electron-builder": "^26.0.0",
     "electron-updater": "^6.6.0",
     "electron-vite": "^4.0.0",
+    "marked": "^18.0.11",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "simple-icons": "^16.28.0",
-    "vite": "^7.0.0",
-    "diff": "^9.0.0"
+    "vite": "^7.0.0"
   },
   "author": "Ripple <noreply@ripple.dev>",
   "desktopName": "ripple-desktop",
-  "homepage": "https://github.com/hellosz/Ripple",
-  "dependencies": {}
+  "homepage": "https://github.com/hellosz/Ripple"
 }

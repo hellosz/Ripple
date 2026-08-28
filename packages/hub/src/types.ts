@@ -84,6 +84,8 @@ export interface HubState {
   owned: Record<string, true>;
   /** 全局操作日志（最近 500 条，倒序） */
   oplog: OpEntry[];
+  /** AI 应用场景分析（skill → 结果） */
+  scenarios: Record<string, ScenarioAnalysis>;
 }
 
 export interface InstallTarget {
@@ -92,6 +94,20 @@ export interface InstallTarget {
   projectDir?: string;
   /** Agent 粒度个性化：强制专属分发（即使该 Agent 支持共享目录标准） */
   dedicated?: boolean;
+}
+
+/** AI 应用场景分析结果（本地持久化） */
+export interface ScenarioAnalysis {
+  tags: {
+    business: string[];
+    role: string[];
+    scene: string[];
+    tool: string[];
+  };
+  summary: string;
+  /** 生成时的技能内容指纹（变化提示重新分析） */
+  fingerprint: string;
+  at: string;
 }
 
 /** 全局操作日志条目 */

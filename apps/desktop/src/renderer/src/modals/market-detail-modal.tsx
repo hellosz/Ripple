@@ -232,7 +232,11 @@ export function MarketDetailModal(): ReactElement | null {
           {installed && files !== null && files.length > 0 && (
             <div style={{ marginBottom: 16 }}>
               <div style={{ fontSize: 11.5, fontWeight: 700, color: dim(0.5), marginBottom: 8 }}>本地文件</div>
-              <FileViewer files={files} height={280} />
+              <FileViewer
+                files={files}
+                height={280}
+                loadAsset={(p) => ripple.readSkillAsset(item.name, p)}
+              />
             </div>
           )}
         </div>

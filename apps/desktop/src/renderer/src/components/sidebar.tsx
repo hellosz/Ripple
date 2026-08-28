@@ -423,8 +423,7 @@ export function Sidebar(): ReactElement {
             : { color: dim(0.55) }),
         }}
       >
-        ⚙ 设置<span style={{ flex: 1 }} />
-        <span style={{ fontSize: 10.5, color: 'rgba(75,80,64,.35)' }}>来源 · 备份 · 记录</span>
+        ⚙ 设置
       </div>
     </div>
   );

@@ -64,7 +64,7 @@ importers:
         version: 3.2.7(@types/debug@4.1.12)(@types/node@22.19.15)(jiti@2.7.0)(jsdom@30.0.1(@noble/hashes@2.3.0))(lightningcss@1.33.0)(tsx@4.23.12)(yaml@2.8.2)
 
   apps/cli:
-    dependencies:
+    devDependencies:
       '@ripple/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
@@ -80,7 +80,6 @@ importers:
       commander:
         specifier: ^14.0.0
         version: 14.0.3
-    devDependencies:
       fflate:
         specifier: ^0.8.2
         version: 0.8.3
@@ -129,6 +128,9 @@ importers:
       electron-vite:
         specifier: ^4.0.0
         version: 4.0.1(vite@7.3.6(@types/node@22.19.15)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.12)(yaml@2.8.2))
+      marked:
+        specifier: ^18.0.11
+        version: 18.0.11
       react:
         specifier: ^19.0.0
         version: 19.2.4
@@ -3695,6 +3697,11 @@ packages:
 
   markdown-table@3.0.4:
     resolution: {integrity: sha512-wiYz4+JrLyb/DqW2hkFJxP7Vd7JuTDm77fvbM8VfEQdmSMqcImWeeRbHwZjBjIFki/VaMK2BhFi7oUUZeM5bqw==}
+
+  marked@18.0.11:
+    resolution: {integrity: sha512-HnslJfsZkRPBDJRHvVtAaWlZHEpSu7u8LgQuJCELjRKuWR+hpq4A7sLq3p8HaI9ypVoXDXxV34CsQJEe1+J5Aw==}
+    engines: {node: '>= 20'}
+    hasBin: true
 
   matcher@3.0.0:
     resolution: {integrity: sha512-OkeDaAZ/bQCxeFAozM55PKcKU0yJMPGifLwV4Qgjitu+5MoAfSQN4lsLJeXZ1b8w0x+/Emda6MZgXS1jvsapng==}
@@ -8452,6 +8459,8 @@ snapshots:
       '@jridgewell/sourcemap-codec': 1.5.5
 
   markdown-table@3.0.4: {}
+
+  marked@18.0.11: {}
 
   matcher@3.0.0:
     dependencies:

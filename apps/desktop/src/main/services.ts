@@ -157,6 +157,7 @@ export class DesktopServices {
       },
       skills,
       oplog: hub.state.oplog,
+      scenarios: hub.state.scenarios,
     };
   }
 

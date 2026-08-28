@@ -26,6 +26,7 @@ export function defaultState(): HubState {
     backups: [],
     owned: {},
     oplog: [],
+    scenarios: {},
   };
 }
 

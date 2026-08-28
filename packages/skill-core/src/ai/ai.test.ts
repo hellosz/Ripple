@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { aiScoreRawSchema } from '@ripple/contract';
+import { aiScenarioRawSchema, aiScoreRawSchema } from '@ripple/contract';
 import { estimateTokens, truncateByTokens } from './estimate.js';
 import { extractBalancedObject, parseLlmJson } from './parse.js';
 import { AI_SCORE_WEIGHTS, computeAiTotal, gradeOfTotal } from './aggregate.js';
@@ -100,5 +100,28 @@ describe('buildSkillAiInput / staticFacts', () => {
     const { user, truncated } = buildSkillAiInput(big, 'score');
     expect(truncated).toBe(true);
     expect(user).toContain('已按预算截断');
+  });
+});
+
+describe('场景分析契约（desktop-refinements-v3）', () => {
+  it('parseLlmJson 解析带围栏的场景 JSON 并通过契约校验', () => {
+    const raw = `\u0060\u0060\u0060json
+{"tags":{"business":["研发效能"],"role":["后端工程师"],"scene":["代码评审"],"tool":[]},"summary":"帮工程师做评审。"}
+\u0060\u0060\u0060`;
+    const parsed = parseLlmJson(raw, aiScenarioRawSchema);
+    expect(parsed?.tags.business).toEqual(['研发效能']);
+    expect(parsed?.tags.tool).toEqual([]);
+  });
+
+  it('契约拒绝：缺 summary / 标签超长 / business 为空', () => {
+    const ok = { tags: { business: ['a'], role: ['b'], scene: ['c'], tool: [] }, summary: 's' };
+    expect(aiScenarioRawSchema.safeParse(ok).success).toBe(true);
+    expect(aiScenarioRawSchema.safeParse({ ...ok, summary: '' }).success).toBe(false);
+    expect(
+      aiScenarioRawSchema.safeParse({ ...ok, tags: { ...ok.tags, business: [] } }).success,
+    ).toBe(false);
+    expect(
+      aiScenarioRawSchema.safeParse({ ...ok, tags: { ...ok.tags, role: ['x'.repeat(21)] } }).success,
+    ).toBe(false);
   });
 });
