@@ -30,6 +30,38 @@ export interface SyncModalState {
 export const targetKey = (agent: string, projectDir?: string): string =>
   `${agent}\n${projectDir ?? 'global'}`;
 
+/**
+ * 共享弹窗「通用」哨兵 key：全局配置为共享目录标准（storage_location=shared）时，
+ * 代表全部已检测且 sharedDirSupport 的 Agent；应用时展开为它们的 global target。
+ */
+export const SHARED_TARGET = '*shared*\nglobal';
+
+/**
+ * 共享模式下的默认勾选归一化：已有落点保持勾选（global 且 mode=shared 的记录折叠进「通用」），
+ * 无任何落点时默认「通用 + Claude Code」。
+ */
+export const sharedModeSelection = (
+  snap: HubSnapshot | null,
+  skill: string,
+): Record<string, boolean> => {
+  const selected: Record<string, boolean> = {};
+  if (!snap) return { [SHARED_TARGET]: true };
+  let hasAny = false;
+  for (const i of snap.installs) {
+    if (i.skill !== skill) continue;
+    hasAny = true;
+    if (i.scope === 'global' && i.mode === 'shared') selected[SHARED_TARGET] = true;
+    else selected[targetKey(i.agent, i.scope === 'global' ? undefined : i.scope)] = true;
+  }
+  if (!hasAny) {
+    selected[SHARED_TARGET] = true;
+    if (snap.agents.some((a) => a.id === 'claude-code' && a.detected)) {
+      selected[targetKey('claude-code')] = true;
+    }
+  }
+  return selected;
+};
+
 export const parseTargetKey = (key: string): { agent: string; projectDir?: string } => {
   const i = key.indexOf('\n');
   const agent = key.slice(0, i);
@@ -230,8 +262,10 @@ export function useAppStore(): Store {
 
   const openRegistrySync = useCallback((skill: string): void => {
     const snap = snapshotRef.current;
-    const selected: Record<string, boolean> = {};
-    if (snap) {
+    let selected: Record<string, boolean> = {};
+    if (snap?.settings.storage_location === 'shared') {
+      selected = sharedModeSelection(snap, skill);
+    } else if (snap) {
       for (const i of snap.installs) {
         if (i.skill === skill) {
           selected[targetKey(i.agent, i.scope === 'global' ? undefined : i.scope)] = true;

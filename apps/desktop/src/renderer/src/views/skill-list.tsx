@@ -6,7 +6,7 @@ import { AgentIcon } from '../agent-icons.js';
 import { SCENARIO_GROUPS } from '../components/scenario-panel.js';
 import { UninstallModal } from '../modals/uninstall-modal.js';
 import { ripple } from '../ripple-api.js';
-import { targetKey, useStore } from '../store.js';
+import { sharedModeSelection, targetKey, useStore } from '../store.js';
 import {
   AMBER,
   DANGER,
@@ -71,6 +71,8 @@ export function SkillListView(): ReactElement {
   const [agentAction, setAgentAction] = useState<AgentActionState | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
   const [uninstallFor, setUninstallFor] = useState<string | null>(null);
+  /** 行「更多」下拉当前展开的技能 */
+  const [menuFor, setMenuFor] = useState<string | null>(null);
   /** 使用次数轻量信号（skill → 总次数）；采集未开启时保持 null 不显示 */
   const [usageCounts, setUsageCounts] = useState<Record<string, number> | null>(null);
   const usageEnabled = snapshot?.settings.usage_collection.enabled ?? false;
@@ -160,10 +162,14 @@ export function SkillListView(): ReactElement {
   };
 
   const openSyncFor = (row: SkillRowData): void => {
-    const selected: Record<string, boolean> = {};
-    for (const i of snapshot.installs) {
-      if (i.skill === row.name) {
-        selected[targetKey(i.agent, i.scope === 'global' ? undefined : i.scope)] = true;
+    let selected: Record<string, boolean> = {};
+    if (storageShared) {
+      selected = sharedModeSelection(snapshot, row.name);
+    } else {
+      for (const i of snapshot.installs) {
+        if (i.skill === row.name) {
+          selected[targetKey(i.agent, i.scope === 'global' ? undefined : i.scope)] = true;
+        }
       }
     }
     store.openSync({
@@ -420,46 +426,91 @@ export function SkillListView(): ReactElement {
             style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, flex: 'none' }}
           >
             <div style={{ display: 'flex', gap: 8 }}>
-              <span
-                className="rp-btn-outline"
-                onClick={() => openSyncFor(r)}
-                style={{ ...outlineBtn, fontSize: 12, padding: '6px 14px', flex: 'none' }}
-              >
-                同步
-              </span>
-              <span
-                className="rp-btn-ghost"
-                onClick={() => store.setHistoryFor(r.name)}
-                title="备份与历史记录"
-                style={{
-                  border: '1px solid rgba(63,68,56,.12)',
-                  color: dim(0.6),
-                  fontSize: 12,
-                  borderRadius: 8,
-                  padding: '6px 12px',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                  flex: 'none',
-                }}
-              >
-                历史
-              </span>
-              <span
-                className="rp-hover-danger"
-                onClick={() => setUninstallFor(r.name)}
-                title="卸载技能（整技能或指定 Agent）"
-                style={{
-                  border: '1px solid rgba(63,68,56,.12)',
-                  color: dim(0.6),
-                  fontSize: 12,
-                  borderRadius: 8,
-                  padding: '6px 12px',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                  flex: 'none',
-                }}
-              >
-                卸载
+              {/* 已共享或满足共享条件（全局共享模式且技能已在 ~/.agents/skills 共享库）时不显示 */}
+              {!(storageShared && r.name in snapshot.skills) && (
+                <span
+                  className="rp-btn-outline"
+                  onClick={() => openSyncFor(r)}
+                  title="维护到 ~/.agents/skills 共享目录标准并选择落点"
+                  style={{ ...outlineBtn, fontSize: 12, padding: '6px 14px', flex: 'none' }}
+                >
+                  共享
+                </span>
+              )}
+              <span style={{ position: 'relative', flex: 'none' }}>
+                <span
+                  className="rp-btn-ghost"
+                  onClick={() => setMenuFor(menuFor === r.name ? null : r.name)}
+                  title="更多操作"
+                  style={{
+                    border: '1px solid rgba(63,68,56,.12)',
+                    color: dim(0.6),
+                    fontSize: 12,
+                    borderRadius: 8,
+                    padding: '6px 12px',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    display: 'inline-block',
+                  }}
+                >
+                  ⋯
+                </span>
+                {menuFor === r.name && (
+                  <>
+                    <span
+                      onClick={() => setMenuFor(null)}
+                      style={{ position: 'fixed', inset: 0, zIndex: 39, cursor: 'default' }}
+                    />
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: 'calc(100% + 5px)',
+                        right: 0,
+                        zIndex: 40,
+                        minWidth: 132,
+                        background: '#ffffff',
+                        border: '1px solid rgba(63,68,56,.12)',
+                        borderRadius: 10,
+                        boxShadow: '0 10px 30px rgba(63,68,56,.16)',
+                        padding: 5,
+                        animation: 'fade-in .15s ease-out',
+                      }}
+                    >
+                      {storageShared && r.name in snapshot.skills && (
+                        <div
+                          className="rp-hover-row"
+                          onClick={() => {
+                            setMenuFor(null);
+                            openSyncFor(r);
+                          }}
+                          style={{ fontSize: 12.5, color: INK, padding: '7px 11px', borderRadius: 7, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                        >
+                          调整落点
+                        </div>
+                      )}
+                      <div
+                        className="rp-hover-row"
+                        onClick={() => {
+                          setMenuFor(null);
+                          store.setHistoryFor(r.name);
+                        }}
+                        style={{ fontSize: 12.5, color: INK, padding: '7px 11px', borderRadius: 7, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                      >
+                        历史与备份
+                      </div>
+                      <div
+                        className="rp-hover-danger"
+                        onClick={() => {
+                          setMenuFor(null);
+                          setUninstallFor(r.name);
+                        }}
+                        style={{ fontSize: 12.5, color: DANGER, padding: '7px 11px', borderRadius: 7, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                      >
+                        卸载…
+                      </div>
+                    </div>
+                  </>
+                )}
               </span>
             </div>
             <span

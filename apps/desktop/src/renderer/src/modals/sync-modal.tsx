@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactElement } from 'react';
 import type { InstallTarget } from '@ripple/hub';
 import { ripple } from '../ripple-api.js';
-import { parseTargetKey, targetKey, useStore } from '../store.js';
+import { SHARED_TARGET, parseTargetKey, targetKey, useStore } from '../store.js';
 import { GREEN_DEEP, INK, PRIMARY, dim, gradBtn } from '../ui.js';
 
 const targetChip = (on: boolean): CSSProperties => ({
@@ -23,10 +23,21 @@ export function SyncModal(): ReactElement | null {
 
   const agentName = (id: string): string => snapshot.agents.find((a) => a.id === id)?.name ?? id;
   const defaultAgent = snapshot.settings.default_agent;
+  const storageShared = snapshot.settings.storage_location === 'shared';
+  const sharedAgents = snapshot.agents.filter((a) => a.detected && a.sharedDirSupport);
 
-  const agentChips = snapshot.agents
-    .filter((a) => a.detected)
-    .map((a) => ({ key: targetKey(a.id), name: a.name }));
+  // 共享（通用）模式：AGENT 段 = 「通用」+ 专属项（不支持共享标准的 Agent 必列；
+  // 有历史专属落点的共享型 Agent 也列出，避免既有勾选不可见）
+  const dedicatedIds = new Set(
+    snapshot.installs
+      .filter((i) => i.skill === sync.skill && i.scope === 'global' && i.mode !== 'shared')
+      .map((i) => i.agent),
+  );
+  const agentChips = storageShared
+    ? snapshot.agents
+        .filter((a) => (a.detected && !a.sharedDirSupport) || dedicatedIds.has(a.id))
+        .map((a) => ({ key: targetKey(a.id), name: `${a.name} · 专属` }))
+    : snapshot.agents.filter((a) => a.detected).map((a) => ({ key: targetKey(a.id), name: a.name }));
 
   const projectChips = snapshot.projects.flatMap((p) => {
     const existing = snapshot.installs.filter((i) => i.skill === sync.skill && i.scope === p.path);
@@ -44,16 +55,25 @@ export function SyncModal(): ReactElement | null {
       store.toast('请至少勾选一个目标');
       return;
     }
-    const targets: InstallTarget[] = Object.entries(sync.selected)
-      .filter(([, on]) => on)
-      .map(([key]) => parseTargetKey(key));
+    // 「通用」哨兵展开为全部共享型 Agent 的全局 target，并按 key 去重
+    const byKey = new Map<string, InstallTarget>();
+    for (const [key, on] of Object.entries(sync.selected)) {
+      if (!on) continue;
+      if (key === SHARED_TARGET) {
+        for (const a of sharedAgents) byKey.set(targetKey(a.id), { agent: a.id });
+      } else {
+        byKey.set(key, parseTargetKey(key));
+      }
+    }
+    const targets = [...byKey.values()];
+    const verb = sync.mode === 'registry' ? '安装' : storageShared ? '共享' : '同步';
     store.run(async () => {
       if (sync.mode === 'registry') await ripple.installFromRegistry(sync.skill, targets);
       else await ripple.sync(sync.skill, targets);
       store.closeSync();
       await store.refresh();
       if (store.loggedIn) await store.refreshUpdates();
-      store.toast(`已备份并同步「${sync.title}」到 ${count} 个目标`);
+      store.toast(`已备份并${verb}「${sync.title}」到 ${targets.length} 个目标`);
     });
   };
 
@@ -92,14 +112,50 @@ export function SyncModal(): ReactElement | null {
           animation: 'slide-up .25s cubic-bezier(.16,1,.3,1)',
         }}
       >
-        <div style={{ fontWeight: 900, fontSize: 16, color: INK }}>同步「{sync.title}」</div>
+        <div style={{ fontWeight: 900, fontSize: 16, color: INK }}>
+          {sync.mode === 'registry' ? '安装' : storageShared ? '共享' : '同步'}「{sync.title}」
+        </div>
         <p style={{ margin: '6px 0 16px', fontSize: 12.5, color: dim(0.55) }}>
-          选择要安装 / 同步到的目标，已勾选项将统一为 {sync.version ? `v${sync.version}` : '最新版'}。
+          选择目标落点，已勾选项将统一为 {sync.version ? `v${sync.version}` : '最新版'}。
         </p>
         <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.18em', color: dim(0.4), marginBottom: 8 }}>
           AGENT · 全局
         </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>{agentChips.map(renderChip)}</div>
+        {storageShared && (
+          <div
+            className="rp-hover-row"
+            onClick={() => store.toggleSyncTarget(SHARED_TARGET)}
+            style={{
+              border: `1px solid ${sync.selected[SHARED_TARGET] ? 'rgba(107,127,67,.5)' : 'rgba(63,68,56,.12)'}`,
+              background: sync.selected[SHARED_TARGET] ? 'rgba(147,168,107,.08)' : undefined,
+              borderRadius: 10,
+              padding: '10px 14px',
+              marginBottom: 10,
+              cursor: 'pointer',
+            }}
+          >
+            <div
+              style={{
+                fontSize: 13,
+                fontWeight: 700,
+                color: sync.selected[SHARED_TARGET] ? PRIMARY : dim(0.6),
+              }}
+            >
+              {sync.selected[SHARED_TARGET] ? '✓' : '＋'} 通用 · ~/.agents/skills
+            </div>
+            <div style={{ fontSize: 11.5, color: dim(0.5), marginTop: 3, lineHeight: 1.6 }}>
+              对所有支持共享目录标准的 Agent 生效（
+              {sharedAgents.length ? sharedAgents.map((a) => a.name).join('、') : '当前未检测到'}）
+            </div>
+          </div>
+        )}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+          {agentChips.length ? (
+            agentChips.map(renderChip)
+          ) : (
+            <span style={{ fontSize: 12, color: dim(0.4) }}>无需单独的专属落点</span>
+          )}
+        </div>
         <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.18em', color: dim(0.4), marginBottom: 8 }}>
           项目 · 本地目录
         </div>

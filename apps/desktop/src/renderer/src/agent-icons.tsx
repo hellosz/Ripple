@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactElement } from 'react';
 import { siClaudecode, siCursor, siDeepseek, siOpencode, siPi } from 'simple-icons';
+import { HERMES_LOGO_B64 } from './hermes-logo.js';
 import { INK, glyphOf } from './ui.js';
 
 /** simple-icons / 官方站点实抓矢量（构建期内联 path，无运行时外链） */
@@ -37,10 +38,7 @@ const SVG_BRANDS: Record<string, SvgBrand> = {
   pi: { path: siPi.path, hex: INK },
 };
 
-const LETTER_BRANDS: Record<string, LetterBrand> = {
-  // Hermes 无官方矢量：双蛇杖符号 + 官方蓝底
-  hermes: { letter: '☤', hex: '#0000F2' },
-};
+const LETTER_BRANDS: Record<string, LetterBrand> = {};
 
 export interface AgentIconProps {
   agentId: string;
@@ -53,6 +51,25 @@ export interface AgentIconProps {
 
 /** Agent 品牌 logo：官方矢量优先，否则品牌色圆角符号块 */
 export function AgentIcon({ agentId, name, size = 16, color }: AgentIconProps): ReactElement {
+  // Hermes：官方 PNG 内联（无矢量资产）；color 覆盖时（未安装置灰）转灰度降透明
+  if (agentId === 'hermes') {
+    return (
+      <img
+        src={`data:image/png;base64,${HERMES_LOGO_B64}`}
+        width={size}
+        height={size}
+        alt=""
+        aria-hidden
+        style={{
+          display: 'block',
+          flex: 'none',
+          borderRadius: Math.max(3, Math.round(size * 0.28)),
+          objectFit: 'contain',
+          ...(color ? { filter: 'grayscale(1)', opacity: 0.42 } : {}),
+        }}
+      />
+    );
+  }
   // OpenClaw：官方龙虾为多元素 SVG，走复合渲染分支
   if (agentId === 'openclaw') {
     const fill = color ?? OPENCLAW.hex;
