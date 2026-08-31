@@ -1,0 +1,58 @@
+name: Build Desktop Packages
+
+# 合并进 main（即 push 到 main）时自动打三平台安装包；也可手动触发。
+# 与 tag 触发的 Release Desktop 的区别：这里不发 GitHub Release，
+# 产物以 Actions artifacts 保存（14 天），用于合并后的即时验证与分发。
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/desktop/**'
+      - 'packages/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/build-desktop.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: build-desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: linux # AppImage + deb
+          - os: macos-latest
+            name: mac # dmg + zip（Apple Silicon，ad-hoc 未签名）
+          - os: windows-latest
+            name: windows # nsis
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build installers
+        run: pnpm --dir apps/desktop build && pnpm --dir apps/desktop exec electron-builder --publish never
+      - name: Collect artifacts
+        shell: bash
+        # 只收安装包与 electron-updater 元数据，排除 unpacked 目录与中间产物
+        run: |
+          mkdir -p dist-out
+          find apps/desktop/release -maxdepth 1 -type f \
+            \( -name '*.AppImage' -o -name '*.deb' -o -name '*.dmg' -o -name '*-mac.zip' \
+               -o -name '*.exe' -o -name '*.blockmap' -o -name 'latest*.yml' \) \
+            -exec cp {} dist-out/ \;
+          ls -la dist-out/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ripple-desktop-${{ matrix.name }}-${{ github.sha }}
+          path: dist-out/
+          retention-days: 14
+          if-no-files-found: error
