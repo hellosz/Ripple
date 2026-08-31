@@ -163,7 +163,7 @@ describe('离线本地流（--zip 安装，无需登录）', () => {
 });
 
 describe('来源管理', () => {
-  it('add/list/remove；内置来源不可删', () => {
+  it('add/list/remove；内置来源可删并可重新添加', () => {
     expect(run(['source', 'add', 'acme/skills#dev:packs']).code).toBe(0);
     const sources = JSON.parse(run(['--json', 'source', 'list']).stdout) as Array<{
       id: string;
@@ -175,6 +175,7 @@ describe('来源管理', () => {
     expect(added).toMatchObject({ branch: 'dev', subdir: 'packs', builtin: false });
 
     expect(run(['--yes', 'source', 'remove', 'acme/skills']).code).toBe(0);
-    expect(run(['--yes', 'source', 'remove', 'anthropics/skills']).code).toBe(1);
+    expect(run(['--yes', 'source', 'remove', 'anthropics/skills']).code).toBe(0);
+    expect(run(['source', 'add', 'anthropics/skills']).code).toBe(0);
   });
 });

@@ -511,6 +511,12 @@ export class RippleHub {
     return this.state.scenarios[skill] ?? null;
   }
 
+  setUsageCollection(settings: { enabled: boolean; agents: Record<string, boolean> }): void {
+    this.state.usage_collection = settings;
+    this.logOp('使用采集', settings.enabled ? '开启' : '关闭', Object.entries(settings.agents).filter(([, v]) => v === false).map(([k]) => `${k} 已单独禁用`).join('、') || '全部 Agent 跟随总开关');
+    this.save();
+  }
+
   saveScenario(skill: string, analysis: ScenarioAnalysis): void {
     this.state.scenarios[skill] = analysis;
     this.logOp('场景分析', skill, analysis.summary.slice(0, 40));

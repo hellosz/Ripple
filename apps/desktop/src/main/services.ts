@@ -155,6 +155,7 @@ export class DesktopServices {
         storage_dir: hub.storageDir(),
         backups_dir: hub.backupsDir,
         hidden_files: hub.state.hidden_files,
+        usage_collection: hub.state.usage_collection,
       },
       skills,
       oplog: hub.state.oplog,

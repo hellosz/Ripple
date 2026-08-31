@@ -88,6 +88,8 @@ export interface HubState {
   scenarios: Record<string, ScenarioAnalysis>;
   /** 查看器默认隐藏的文件名（系统默认配置，如各工具的元数据文件） */
   hidden_files: string[];
+  /** 使用采集开关（默认关闭，opt-in）；agents 为按 Agent 覆盖（缺省跟随 enabled） */
+  usage_collection: { enabled: boolean; agents: Record<string, boolean> };
 }
 
 export interface InstallTarget {

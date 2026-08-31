@@ -93,8 +93,14 @@ export function Sidebar(): ReactElement {
       <path d="M12 15h8" />
     </svg>
   );
+  const discoverIcon = (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: '-1px' }}>
+      <circle cx="12" cy="12" r="10" />
+      <path d="m16.2 7.8-2.3 6.1-6.1 2.3 2.3-6.1z" />
+    </svg>
+  );
   const mainNav: {
-    key: 'local' | 'market' | 'community' | 'tasks' | 'updates';
+    key: 'local' | 'market' | 'community' | 'discover' | 'tasks' | 'updates';
     icon: string | ReactElement;
     name: string;
     badge: number | null;
@@ -103,6 +109,7 @@ export function Sidebar(): ReactElement {
     { key: 'local', icon: '▦', name: '本地技能', badge: null, locked: false },
     { key: 'market', icon: '◎', name: '技能市场', badge: null, locked: !loggedIn },
     { key: 'community', icon: '⌂', name: '社区开源', badge: null, locked: false },
+    { key: 'discover', icon: discoverIcon, name: '发现', badge: null, locked: false },
     { key: 'tasks', icon: tasksIcon, name: '任务', badge: null, locked: false },
     {
       key: 'updates',

@@ -7,3 +7,6 @@ export * from './tar.js';
 export * from './sources.js';
 export * from './fingerprint.js';
 export * from './hub.js';
+export * from './discover/discover.js';
+export * from './usage/types.js';
+export * from './usage/collector.js';

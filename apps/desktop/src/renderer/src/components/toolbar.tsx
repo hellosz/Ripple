@@ -125,6 +125,9 @@ export function Toolbar(): ReactElement {
   } else if (view.kind === 'community') {
     title = '社区开源';
     sub = 'GitHub / GitLab 技能仓库 · 无需登录';
+  } else if (view.kind === 'discover') {
+    title = '发现';
+    sub = '开源技能生态 · GitHub 排行与精选';
   } else if (view.kind === 'tasks') {
     title = '任务';
     sub = '对本地技能批量运行分析任务';

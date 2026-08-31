@@ -5,12 +5,13 @@ import { DiffBlock, ScoreCard, SuggestList } from '../components/ai-panels.js';
 import { FileViewer } from '../components/file-viewer.js';
 import type { SkillFileEntry } from '../components/file-viewer.js';
 import { ScenarioPanel } from '../components/scenario-panel.js';
+import { UsageBlock } from '../components/usage-panel.js';
 import { UninstallModal } from './uninstall-modal.js';
 import { ripple } from '../ripple-api.js';
 import { errText, useStore } from '../store.js';
 import { AMBER, DANGER, GREEN_DEEP, INK, MONO, PRIMARY, dim, gradBtn, originLabel, outlineBtn } from '../ui.js';
 
-type AiView = 'files' | 'score' | 'optimize' | 'scenario';
+type AiView = 'files' | 'score' | 'optimize' | 'scenario' | 'usage';
 
 /** 优化视图：建议清单 + patch diff（应用 / 全部应用 / 放弃） */
 function OptimizePanel({
@@ -168,8 +169,12 @@ export function SkillDetailModal(): ReactElement | null {
   const [applied, setApplied] = useState<Record<string, boolean>>({});
   const [applying, setApplying] = useState(false);
   const [uninstallOpen, setUninstallOpen] = useState(false);
+  /** 是否有使用数据（决定「附带使用统计」勾选可用性） */
+  const [hasUsage, setHasUsage] = useState(false);
+  const [withUsage, setWithUsage] = useState(false);
 
   const skill = skillDetail;
+  const usageEnabled = snapshot?.settings.usage_collection.enabled ?? false;
 
   const load = useCallback(async (name: string): Promise<void> => {
     try {
@@ -191,8 +196,24 @@ export function SkillDetailModal(): ReactElement | null {
     setApplied({});
     setApplying(false);
     setUninstallOpen(false);
+    setHasUsage(false);
+    setWithUsage(false);
     if (skill) void load(skill);
   }, [skill, load]);
+
+  useEffect(() => {
+    if (!skill || !usageEnabled) return;
+    let alive = true;
+    ripple
+      .usageStats(skill)
+      .then((s) => {
+        if (alive) setHasUsage(s.length > 0);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [skill, usageEnabled]);
 
   if (!skill) return null;
 
@@ -230,7 +251,7 @@ export function SkillDetailModal(): ReactElement | null {
     setScoring(true);
     void (async () => {
       try {
-        setScore(await ripple.aiScore(skill));
+        setScore(await ripple.aiScore(skill, withUsage));
       } catch (err) {
         store.toast(`评分失败：${errText(err)}`);
         if (!score) setAiView('files');
@@ -251,7 +272,7 @@ export function SkillDetailModal(): ReactElement | null {
     setOptimizing(true);
     void (async () => {
       try {
-        setSuggest(await ripple.aiOptimize(skill));
+        setSuggest(await ripple.aiOptimize(skill, withUsage));
         setApplied({});
       } catch (err) {
         store.toast(`优化失败：${errText(err)}`);
@@ -374,9 +395,33 @@ export function SkillDetailModal(): ReactElement | null {
           </span>
           {aiView !== 'files' &&
             headBtn('← 返回文件', '', false, false, () => setAiView('files'))}
+          {hasUsage && (
+            <label
+              title="勾选后，评分 / 优化将随请求发送该技能的聚合使用统计（次数 / Agent / 项目分布），不含对话内容"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                fontSize: 11,
+                color: withUsage ? PRIMARY : dim(0.5),
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                flex: 'none',
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={withUsage}
+                onChange={() => setWithUsage((v) => !v)}
+                style={{ accentColor: PRIMARY, margin: 0 }}
+              />
+              附带使用统计
+            </label>
+          )}
           {headBtn('评分', '评分中…', scoring, aiView === 'score', () => runScore(false))}
           {headBtn('优化', '生成中…', optimizing, aiView === 'optimize', runOptimize)}
           {headBtn('场景', '', false, aiView === 'scenario', () => setAiView('scenario'))}
+          {headBtn('使用', '', false, aiView === 'usage', () => setAiView('usage'))}
           <span
             className="rp-hover-danger"
             onClick={() => setUninstallOpen(true)}
@@ -404,6 +449,16 @@ export function SkillDetailModal(): ReactElement | null {
           </span>
         </div>
         <div style={{ flex: 1, minHeight: 0, padding: '0 22px 18px' }}>
+          {aiView === 'usage' && (
+            <UsageBlock
+              skill={skill}
+              onGoSettings={() => {
+                close();
+                store.setSettingsTab('ai');
+                store.setView({ kind: 'settings' });
+              }}
+            />
+          )}
           {aiView === 'scenario' && (
             <ScenarioPanel
               skill={skill}

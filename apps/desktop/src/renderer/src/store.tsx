@@ -4,7 +4,7 @@ import type { CommunitySkill } from '@ripple/hub';
 import type { AuthState, HubSnapshot, UpdateEntry } from '../../shared/api.js';
 import { ripple } from './ripple-api.js';
 
-export type ViewKind = 'local' | 'agent' | 'project' | 'community' | 'market' | 'tasks' | 'updates' | 'settings';
+export type ViewKind = 'local' | 'agent' | 'project' | 'community' | 'discover' | 'market' | 'tasks' | 'updates' | 'settings';
 
 export interface View {
   kind: ViewKind;

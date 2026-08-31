@@ -28,6 +28,7 @@ export function defaultState(): HubState {
     oplog: [],
     scenarios: {},
     hidden_files: ['.openskills.json', '.skill-lock.json', '.DS_Store'],
+    usage_collection: { enabled: false, agents: {} },
   };
 }
 

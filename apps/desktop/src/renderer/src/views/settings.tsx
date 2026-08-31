@@ -4,6 +4,7 @@ import type { RepoSkill } from '@ripple/hub';
 import type { AiUsageEntry } from '@ripple/contract';
 import type { AiProvider } from '../../../shared/api.js';
 import { AgentIcon } from '../agent-icons.js';
+import { UsageCollectPanel } from '../components/usage-panel.js';
 import { ripple } from '../ripple-api.js';
 import { errText, useStore } from '../store.js';
 import {
@@ -679,6 +680,7 @@ function AiTab(): ReactElement {
         ✓ API Key 经系统安全存储（safeStorage）加密保存，仅在本机主进程使用，不上传服务器
       </div>
       <AiUsagePanel />
+      <UsageCollectPanel />
     </div>
   );
 }

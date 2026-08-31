@@ -1,7 +1,11 @@
 import type {
   BackupRecord,
   CommunitySkill,
+  DiscoverIndex,
+  DiscoverRepoSkills,
+  ScanSummary,
   ScenarioAnalysis,
+  UsageStatEntry,
   DetectedAgent,
   DistMode,
   HistoryEntry,
@@ -52,6 +56,7 @@ export interface HubSnapshot {
     storage_dir: string;
     backups_dir: string;
     hidden_files: string[];
+    usage_collection: { enabled: boolean; agents: Record<string, boolean> };
   };
   /** 每个技能 SSOT 内的当前版本与描述（含未纳管但位于共享库中的技能） */
   skills: Record<string, { version: string | null; description: string | null }>;
@@ -136,9 +141,9 @@ export interface DesktopApi {
   }): Promise<AiConfigPublic>;
   aiTest(): Promise<{ ok: boolean; message: string }>;
   /** SKILL 质量评分（LLM 不可用时降级本地规则评级） */
-  aiScore(skill: string): Promise<AiScoreResult>;
+  aiScore(skill: string, withUsage?: boolean): Promise<AiScoreResult>;
   /** SKILL 优化建议 + 可落盘补丁 */
-  aiOptimize(skill: string): Promise<AiSuggestResult>;
+  aiOptimize(skill: string, withUsage?: boolean): Promise<AiSuggestResult>;
   /** 应用优化补丁（写回 SSOT 并重建 copy 分发） */
   aiApplyPatches(skill: string, patches: AiPatch[]): Promise<{ applied: number }>;
   /** 应用场景分析（本地持久化；指纹一致时直接返回缓存，force 强制重新生成） */
@@ -146,6 +151,23 @@ export interface DesktopApi {
   /** AI 调用用量与费用（最近 200 条 + 合计） */
   /** 任务主日志（批量任务完成后记录；细分日志由各操作自身记录） */
   logTask(title: string, detail: string): Promise<{ ok: boolean }>;
+  /** 发现索引（缓存 24h；refresh 强制刷新；degraded 表示配额受限降级） */
+  discoverIndex(refresh?: boolean): Promise<DiscoverIndex>;
+  /** 仓库技能懒扫描（含本地 S/A/B/C 评级，按 branch+pushed_at 缓存） */
+  discoverRepo(owner: string, repo: string, branch?: string, pushedAt?: string | null): Promise<DiscoverRepoSkills>;
+  /** GitHub PAT（深度探索用，safeStorage 加密存储；null 清除）；返回是否已配置 */
+  discoverSetPat(pat: string | null): Promise<{ configured: boolean }>;
+  discoverPatStatus(): Promise<{ configured: boolean }>;
+  /** PAT 深搜（未配置 PAT 时报错） */
+  discoverDeepSearch(query?: string): Promise<DiscoverIndex['repos']>;
+  /** 手动触发使用扫描（记操作日志主日志） */
+  usageScan(): Promise<ScanSummary>;
+  /** 使用聚合统计（skill 缺省为全部技能） */
+  usageStats(skill?: string): Promise<UsageStatEntry[]>;
+  /** 读取/设置使用采集开关（传参即设置并重新调度） */
+  usageSettings(settings?: { enabled: boolean; agents: Record<string, boolean> }): Promise<{ enabled: boolean; agents: Record<string, boolean> }>;
+  /** 清除全部使用数据（事件/游标/聚合） */
+  usageClear(): Promise<{ ok: boolean }>;
   aiUsage(): Promise<{
     entries: AiUsageEntry[];
     totals: { calls: number; prompt_tokens: number; completion_tokens: number; cost_usd: number };

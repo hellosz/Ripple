@@ -10,6 +10,10 @@ import {
 } from '../shared/api.js';
 import { DesktopServices } from './services.js';
 import { AiService, SkillAiFeatures, analyzeScenario, type AiProvider } from './ai.js';
+import { DiscoveryService } from './discovery.js';
+import { existsSync, readdirSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { UsageCollector } from '@ripple/hub';
 import type { AiPatch } from '@ripple/contract';
 
 const { autoUpdater } = electronUpdater;
@@ -17,6 +21,63 @@ const { autoUpdater } = electronUpdater;
 const services = new DesktopServices();
 const aiService = new AiService();
 const skillAi = new SkillAiFeatures(aiService);
+const discovery = new DiscoveryService();
+const usageCollector = new UsageCollector({
+  homeDir: homedir(),
+  knownSkills: () => {
+    try {
+      const dir = services.hub.storageDir();
+      if (!existsSync(dir)) return [];
+      return readdirSync(dir, { withFileTypes: true })
+        .filter((e) => e.isDirectory() && existsSync(join(dir, e.name, 'SKILL.md')))
+        .map((e) => e.name);
+    } catch {
+      return [];
+    }
+  },
+  settings: () => services.hub.state.usage_collection,
+});
+let usageTimer: NodeJS.Timeout | null = null;
+
+async function runUsageScan(trigger: string): Promise<Awaited<ReturnType<UsageCollector['scanAll']>>> {
+  const started = Date.now();
+  const summary = await usageCollector.scanAll();
+  if (summary.added > 0 || trigger === '手动') {
+    const failed = summary.sources.filter((s) => s.error).length;
+    services.hub.logOp(
+      '使用扫描',
+      trigger,
+      `新增 ${summary.added} 条 · ${summary.sources.length} 个源${failed ? ` · ${failed} 个源失败` : ''} · ${Date.now() - started}ms`,
+    );
+  }
+  return summary;
+}
+
+/** 使用聚合摘要（仅元数据统计，不含对话正文）；无数据返回 null */
+function usageSummaryOf(skill: string): string | null {
+  const stats = usageCollector.stats(skill);
+  if (stats.length === 0) return null;
+  const lines = stats.map((s) => {
+    const projects = Object.entries(s.projects)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([dir, n]) => `${dir}(${n})`)
+      .join('、');
+    return `- ${s.agent}: ${s.count} 次，首次 ${s.first_at.slice(0, 10)}，最近 ${s.last_at.slice(0, 10)}${projects ? `，主要项目 ${projects}` : ''}`;
+  });
+  return `## 本地使用统计（聚合元数据，供评估参考）\n${lines.join('\n')}`;
+}
+
+function scheduleUsageScan(): void {
+  if (usageTimer) {
+    clearInterval(usageTimer);
+    usageTimer = null;
+  }
+  if (!services.hub.state.usage_collection.enabled) return;
+  setTimeout(() => void runUsageScan('启动').catch(() => undefined), 10_000);
+  usageTimer = setInterval(() => void runUsageScan('定时').catch(() => undefined), 30 * 60 * 1000);
+}
+
 let mainWindow: BrowserWindow | null = null;
 let pendingDeepLink: string | null = null;
 
@@ -50,6 +111,7 @@ if (!gotLock) {
   void app.whenReady().then(() => {
     createWindow();
     setupUpdater();
+    scheduleUsageScan();
     const url = process.argv.find((a) => a.startsWith('ripple://'));
     if (url) deliverDeepLink(url);
   });
@@ -224,13 +286,19 @@ const handlers: Record<string, RpcHandler> = {
   aiSetConfig: (input: { provider: AiProvider; baseUrl?: string; model?: string; apiKey?: string }) =>
     aiService.setConfig(input),
   aiTest: () => aiService.test(),
-  aiScore: async (skill: string) => {
-    const result = await skillAi.score(services.hub.readSkillFiles(skill));
+  aiScore: async (skill: string, withUsage?: boolean) => {
+    const result = await skillAi.score(
+      services.hub.readSkillFiles(skill),
+      withUsage ? (usageSummaryOf(skill) ?? undefined) : undefined,
+    );
     services.hub.logOp('AI 评分', skill, `${result.total} 分 · ${result.grade} 级${result.source === 'fallback' ? ' · 本地规则' : ''}`);
     return result;
   },
-  aiOptimize: async (skill: string) => {
-    const result = await skillAi.optimize(services.hub.readSkillFiles(skill));
+  aiOptimize: async (skill: string, withUsage?: boolean) => {
+    const result = await skillAi.optimize(
+      services.hub.readSkillFiles(skill),
+      withUsage ? (usageSummaryOf(skill) ?? undefined) : undefined,
+    );
     services.hub.logOp('AI 优化建议', skill, `${result.suggestions.length} 条建议 · ${result.patches.length} 个补丁`);
     return result;
   },
@@ -249,6 +317,26 @@ const handlers: Record<string, RpcHandler> = {
   aiUsage: () => aiService.getUsage(),
   logTask: (title: string, detail: string) => {
     services.hub.logOp('任务', title, detail);
+    return { ok: true };
+  },
+  discoverIndex: (refresh?: boolean) => discovery.getIndex(refresh),
+  discoverRepo: (owner: string, repo: string, branch?: string, pushedAt?: string | null) =>
+    discovery.getRepoSkills(owner, repo, branch, pushedAt),
+  discoverSetPat: (pat: string | null) => discovery.setPat(pat),
+  discoverPatStatus: () => ({ configured: discovery.hasPat() }),
+  discoverDeepSearch: (query?: string) => discovery.deepSearch(query),
+  usageScan: () => runUsageScan('手动'),
+  usageStats: (skill?: string) => usageCollector.stats(skill),
+  usageSettings: (settings?: { enabled: boolean; agents: Record<string, boolean> }) => {
+    if (settings) {
+      services.hub.setUsageCollection(settings);
+      scheduleUsageScan();
+    }
+    return services.hub.state.usage_collection;
+  },
+  usageClear: () => {
+    usageCollector.clear();
+    services.hub.logOp('使用采集', '清除', '全部使用事件、游标与聚合已删除');
     return { ok: true };
   },
   readSkillAsset: (skill: string, path: string) => services.hub.readSkillAsset(skill, path),

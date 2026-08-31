@@ -1,0 +1,4 @@
+{"timestamp":"2026-08-02T09:00:00.000Z","type":"session_meta","payload":{"cwd":"/proj/beta","originator":"codex_cli"}}
+{"timestamp":"2026-08-02T09:01:00.000Z","type":"response_item","payload":{"type":"function_call","arguments":"{\"cmd\":\"sed -n '1,240p' /home/user/.agents/skills/demo-deploy/SKILL.md\"}"}}
+{"timestamp":"2026-08-02T09:02:00.000Z","type":"response_item","payload":{"type":"function_call","arguments":"{\"cmd\":\"cat /home/user/.agents/skills/not-installed-skill/SKILL.md\"}"}}
+{"timestamp":"2026-08-02T09:03:00.000Z","type":"response_item","payload":{"type":"message","content":"done"}}

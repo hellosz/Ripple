@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { CSSProperties, ReactElement } from 'react';
 import type { CommunitySkill, InstallRecord } from '@ripple/hub';
 import type { AgentSummary } from '../../../shared/api.js';
@@ -71,6 +71,26 @@ export function SkillListView(): ReactElement {
   const [agentAction, setAgentAction] = useState<AgentActionState | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
   const [uninstallFor, setUninstallFor] = useState<string | null>(null);
+  /** 使用次数轻量信号（skill → 总次数）；采集未开启时保持 null 不显示 */
+  const [usageCounts, setUsageCounts] = useState<Record<string, number> | null>(null);
+  const usageEnabled = snapshot?.settings.usage_collection.enabled ?? false;
+
+  useEffect(() => {
+    if (!usageEnabled) return;
+    let alive = true;
+    ripple
+      .usageStats()
+      .then((stats) => {
+        if (!alive) return;
+        const counts: Record<string, number> = {};
+        for (const s of stats) counts[s.skill] = (counts[s.skill] ?? 0) + s.count;
+        setUsageCounts(counts);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [usageEnabled]);
 
   if (!snapshot) {
     return <div style={{ textAlign: 'center', padding: '80px 0', color: dim(0.45) }}>加载中…</div>;
@@ -377,6 +397,14 @@ export function SkillListView(): ReactElement {
               >
                 {r.description || '暂无简介'}
               </span>
+              {usageCounts !== null && (usageCounts[r.name] ?? 0) > 0 && (
+                <span
+                  title="来自使用分析：本机 Agent 会话中的调用次数（详情 → 使用）"
+                  style={{ fontSize: 10.5, color: dim(0.4), whiteSpace: 'nowrap', flex: 'none', fontFamily: MONO }}
+                >
+                  {usageCounts[r.name]} 次使用
+                </span>
+              )}
             </div>
             {renderScenarioChips(r.name)}
           </div>

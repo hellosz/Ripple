@@ -295,11 +295,12 @@ export class SkillAiFeatures {
     };
   }
 
-  async score(files: SkillFileInput[]): Promise<AiScoreResult> {
-    const key = this.cacheKey(files);
+  async score(files: SkillFileInput[], extraContext?: string): Promise<AiScoreResult> {
+    const key = this.cacheKey(files) + (extraContext ? `|${createHash('sha256').update(extraContext).digest('hex').slice(0, 12)}` : '');
     const cached = this.scoreCache.get(key);
     if (cached) return cached;
-    const { user } = buildSkillAiInput(files, 'score');
+    let { user } = buildSkillAiInput(files, 'score');
+    if (extraContext) user += `\n\n${extraContext}`;
     let result: AiScoreResult;
     try {
       const raw = await this.ai.chatJson(
@@ -322,8 +323,9 @@ export class SkillAiFeatures {
     return result;
   }
 
-  async optimize(files: SkillFileInput[]): Promise<AiSuggestResult> {
-    const { user } = buildSkillAiInput(files, 'suggest');
+  async optimize(files: SkillFileInput[], extraContext?: string): Promise<AiSuggestResult> {
+    let { user } = buildSkillAiInput(files, 'suggest');
+    if (extraContext) user += `\n\n${extraContext}`;
     try {
       const raw = await this.ai.chatJson(
         [
