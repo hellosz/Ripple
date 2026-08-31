@@ -7,8 +7,11 @@ export default defineConfig({
   main: {
     build: {
       rollupOptions: {
-        input: 'src/main/index.ts',
+        // usage-worker：ELECTRON_RUN_AS_NODE 子进程入口（扫描不进主进程，规避
+        // node:sqlite / 原生 zstd 在 Electron 主进程的非确定性崩溃）
+        input: { index: 'src/main/index.ts', 'usage-worker': 'src/main/usage-worker.ts' },
         external: ['electron'],
+        output: { entryFileNames: '[name].js' },
       },
     },
   },

@@ -16,6 +16,7 @@
     "@ripple/api-client": "workspace:*",
     "@ripple/contract": "workspace:*",
     "@ripple/skill-core": "workspace:*",
-    "fflate": "^0.8.2"
+    "fflate": "^0.8.2",
+    "fzstd": "^0.1.1"
   }
 }

@@ -1,26 +1,24 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
-import * as zlib from 'node:zlib';
+import { setImmediate as yieldLoop } from 'node:timers/promises';
+import { decompress as zstdDecompressFrame } from 'fzstd';
 import { usageEventId } from './store.js';
 import type { JsonlCursor, ProbeContext, ProbeScanResult, UsageEvent, UsageProbe } from './types.js';
 
 const SKILL_PATH_RE = /skills\/([a-z0-9][a-z0-9-]*)\/SKILL\.md/g;
 /** zstd frame magic（little-endian 0xFD2FB528） */
 const ZSTD_MAGIC = Buffer.from([0x28, 0xb5, 0x2f, 0xfd]);
-
-type ZstdDecompress = (buf: Buffer) => Buffer;
-
-function zstdDecompressSync(): ZstdDecompress | null {
-  const fn = (zlib as unknown as { zstdDecompressSync?: ZstdDecompress }).zstdDecompressSync;
-  return typeof fn === 'function' ? fn : null;
-}
+/** 每处理这么多帧让出一次事件循环（解压在主进程跑，避免长时间阻塞 UI） */
+const FRAMES_PER_TICK = 400;
 
 /**
- * 多帧 zstd 解压：DSH 会话按帧追加写，Node 的同步/流式 API 都只解首帧（实测），
- * 因此按 frame magic 分割逐帧解压；压缩数据内出现伪 magic 时该候选帧解压失败，
- * 向后合并下一段重试直至成功（或放弃该帧，不阻塞后续）。
+ * 多帧 zstd 解压（纯 JS fzstd）：DSH 会话按帧追加写，Node 原生 zstd 的同步/流式 API
+ * 都只解首帧，且 zstdDecompressSync 在 Electron 主进程高频调用会非确定性 SIGTRAP
+ * （实测同文件同代码时崩时不崩）——因此用纯 JS 解码器按 frame magic 分割逐帧解压。
+ * 压缩数据内出现伪 magic 时该候选帧解压失败，向后合并下一段重试直至成功（或放弃该帧）。
+ * 分批 await 让出事件循环，避免大文件卡死 UI。
  */
-export function inflateZstdFrames(buf: Buffer, decompress: ZstdDecompress): string {
+export async function inflateZstdFrames(buf: Buffer): Promise<string> {
   const starts: number[] = [];
   let i = 0;
   while ((i = buf.indexOf(ZSTD_MAGIC, i)) !== -1) {
@@ -29,10 +27,11 @@ export function inflateZstdFrames(buf: Buffer, decompress: ZstdDecompress): stri
   }
   const parts: Buffer[] = [];
   for (let k = 0; k < starts.length; k++) {
+    if (k % FRAMES_PER_TICK === 0 && k > 0) await yieldLoop();
     for (let end = k + 1; end <= starts.length; end++) {
       const slice = buf.subarray(starts[k]!, end < starts.length ? starts[end] : undefined);
       try {
-        parts.push(decompress(slice));
+        parts.push(Buffer.from(zstdDecompressFrame(slice)));
         k = end - 1;
         break;
       } catch {
@@ -95,12 +94,10 @@ export function eventsFromDshSession(
 export const dshProbe: UsageProbe = {
   agent: 'deepseek-harness',
   available(): boolean {
-    return zstdDecompressSync() !== null;
+    return true; // 纯 JS 解码器，无运行时版本约束
   },
   async scan(ctx: ProbeContext): Promise<ProbeScanResult> {
     const result: ProbeScanResult = { events: [], cursors: {}, files: 0 };
-    const decompress = zstdDecompressSync();
-    if (!decompress) return result;
     const root = join(ctx.homeDir, '.dsh', 'sessions');
     if (!existsSync(root)) return result;
     const known = new Set(ctx.knownSkills());
@@ -120,7 +117,7 @@ export const dshProbe: UsageProbe = {
             result.cursors[key] = cursor;
             continue; // 未变更：跳过整文件重解压
           }
-          const text = inflateZstdFrames(readFileSync(file), decompress);
+          const text = await inflateZstdFrames(readFileSync(file));
           result.events.push(...eventsFromDshSession(text, file, known));
           result.cursors[key] = cursor;
         } catch {

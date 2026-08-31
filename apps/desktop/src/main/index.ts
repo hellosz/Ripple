@@ -12,6 +12,7 @@ import { DesktopServices } from './services.js';
 import { AiService, SkillAiFeatures, analyzeScenario, type AiProvider } from './ai.js';
 import { DiscoveryService } from './discovery.js';
 import { existsSync, readdirSync } from 'node:fs';
+import { spawn } from 'node:child_process';
 import { homedir } from 'node:os';
 import { UsageCollector } from '@ripple/hub';
 import type { AiPatch } from '@ripple/contract';
@@ -22,26 +23,74 @@ const services = new DesktopServices();
 const aiService = new AiService();
 const skillAi = new SkillAiFeatures(aiService);
 const discovery = new DiscoveryService();
+function knownSkillNames(): string[] {
+  try {
+    const dir = services.hub.storageDir();
+    if (!existsSync(dir)) return [];
+    return readdirSync(dir, { withFileTypes: true })
+      .filter((e) => e.isDirectory() && existsSync(join(dir, e.name, 'SKILL.md')))
+      .map((e) => e.name);
+  } catch {
+    return [];
+  }
+}
+
+// 主进程内的 collector 仅用于 stats/clear（纯 fs，安全）；scanAll 一律走子进程
 const usageCollector = new UsageCollector({
   homeDir: homedir(),
-  knownSkills: () => {
-    try {
-      const dir = services.hub.storageDir();
-      if (!existsSync(dir)) return [];
-      return readdirSync(dir, { withFileTypes: true })
-        .filter((e) => e.isDirectory() && existsSync(join(dir, e.name, 'SKILL.md')))
-        .map((e) => e.name);
-    } catch {
-      return [];
-    }
-  },
+  knownSkills: knownSkillNames,
   settings: () => services.hub.state.usage_collection,
 });
 let usageTimer: NodeJS.Timeout | null = null;
 
+/** 扫描在 ELECTRON_RUN_AS_NODE 子进程执行（见 usage-worker.ts 头注释）；主进程只读结果 */
+function scanInWorker(): Promise<Awaited<ReturnType<UsageCollector['scanAll']>>> {
+  return new Promise((resolve, reject) => {
+    const config = JSON.stringify({
+      homeDir: homedir(),
+      knownSkills: knownSkillNames(),
+      settings: services.hub.state.usage_collection,
+    });
+    const worker = spawn(process.execPath, [join(__dirname, 'usage-worker.js'), config], {
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let stdout = '';
+    let stderr = '';
+    worker.stdout.on('data', (chunk: Buffer) => (stdout += chunk.toString()));
+    worker.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString()));
+    const timer = setTimeout(() => {
+      worker.kill();
+      reject(new Error('使用扫描超时（10 分钟）'));
+    }, 10 * 60 * 1000);
+    worker.on('error', (err) => {
+      clearTimeout(timer);
+      reject(err);
+    });
+    worker.on('exit', (code) => {
+      clearTimeout(timer);
+      const line = stdout.split('\n').find((l) => l.startsWith('RESULT:'));
+      if (code === 0 && line) {
+        resolve(JSON.parse(line.slice('RESULT:'.length)) as Awaited<ReturnType<UsageCollector['scanAll']>>);
+      } else {
+        reject(new Error(stderr.trim() || `usage-worker 退出码 ${code}`));
+      }
+    });
+  });
+}
+
+let usageScanInFlight = false;
+
 async function runUsageScan(trigger: string): Promise<Awaited<ReturnType<UsageCollector['scanAll']>>> {
+  if (usageScanInFlight) return { added: 0, sources: [] };
+  usageScanInFlight = true;
   const started = Date.now();
-  const summary = await usageCollector.scanAll();
+  let summary: Awaited<ReturnType<UsageCollector['scanAll']>>;
+  try {
+    summary = await scanInWorker();
+  } finally {
+    usageScanInFlight = false;
+  }
   if (summary.added > 0 || trigger === '手动') {
     const failed = summary.sources.filter((s) => s.error).length;
     services.hub.logOp(

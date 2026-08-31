@@ -295,21 +295,25 @@ describe('hermes probe：skill_view 结构化证据', () => {
 });
 
 describe('deepseek-harness probe：zstd 多帧与白名单', () => {
-  it('inflateZstdFrames 解出全部帧（含伪 magic 合并重试路径）', async () => {
+  const zstdCompress = async (): Promise<((b: Buffer) => Buffer) | null> => {
     const zlib = await import('node:zlib');
-    const z = zlib as unknown as { zstdCompressSync?: (b: Buffer) => Buffer; zstdDecompressSync?: (b: Buffer) => Buffer };
-    if (!z.zstdCompressSync || !z.zstdDecompressSync) return; // Node 无 zstd 时跳过
+    const fn = (zlib as unknown as { zstdCompressSync?: (b: Buffer) => Buffer }).zstdCompressSync;
+    return typeof fn === 'function' ? fn : null;
+  };
+
+  it('inflateZstdFrames（纯 JS fzstd）解出全部帧', async () => {
+    const compress = await zstdCompress();
+    if (!compress) return; // 测试环境 Node 无 zstd 压缩端时跳过（解压端 fzstd 恒可用）
     const { inflateZstdFrames } = await import('./probe-dsh.js');
-    const f1 = z.zstdCompressSync(Buffer.from('line-one\n'));
-    const f2 = z.zstdCompressSync(Buffer.from('line-two\n'));
-    const text = inflateZstdFrames(Buffer.concat([f1, f2]), z.zstdDecompressSync);
+    const f1 = compress(Buffer.from('line-one\n'));
+    const f2 = compress(Buffer.from('line-two\n'));
+    const text = await inflateZstdFrames(Buffer.concat([f1, f2]));
     expect(text).toBe('line-one\nline-two\n');
   });
 
   it('会话解析：白名单过滤、cwd/time 关联；未变更跳过重扫', async () => {
-    const zlib = await import('node:zlib');
-    const z = zlib as unknown as { zstdCompressSync?: (b: Buffer) => Buffer };
-    if (!z.zstdCompressSync) return;
+    const compress = await zstdCompress();
+    if (!compress) return;
     const dir = join(home, '.dsh', 'sessions', '--proj--', 'session-1234');
     mkdirSync(dir, { recursive: true });
     const lines = [
@@ -317,7 +321,7 @@ describe('deepseek-harness probe：zstd 多帧与白名单', () => {
       JSON.stringify({ type: 'tool/result', time: 1786673700293, data: { output: 'cat /home/u/.agents/skills/demo-deploy/SKILL.md' } }),
       JSON.stringify({ type: 'tool/result', time: 1786673700300, data: { output: 'cat skills/unknown-skill/SKILL.md' } }),
     ];
-    const frames = lines.map((l) => z.zstdCompressSync!(Buffer.from(l + '\n')));
+    const frames = lines.map((l) => compress(Buffer.from(l + '\n')));
     writeFileSync(join(dir, 'session.jsonl.zstd'), Buffer.concat(frames));
     const { dshProbe } = await import('./probe-dsh.js');
     const collector = makeCollector({ probes: [dshProbe] });
@@ -331,10 +335,8 @@ describe('deepseek-harness probe：zstd 多帧与白名单', () => {
     expect(again.added).toBe(0);
   });
 
-  it('available 依赖 zstdDecompressSync 存在', async () => {
+  it('available 恒为 true（纯 JS 解码器无运行时约束）', async () => {
     const { dshProbe } = await import('./probe-dsh.js');
-    const zlib = await import('node:zlib');
-    const has = typeof (zlib as unknown as { zstdDecompressSync?: unknown }).zstdDecompressSync === 'function';
-    expect(dshProbe.available()).toBe(has);
+    expect(dshProbe.available()).toBe(true);
   });
 });
