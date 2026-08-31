@@ -83,12 +83,6 @@ jobs:
       redis:
         image: redis:7-alpine
         ports: ['6379:6379']
-      minio:
-        image: bitnami/minio:latest
-        env:
-          MINIO_ROOT_USER: ripple
-          MINIO_ROOT_PASSWORD: ripple123456
-        ports: ['9000:9000']
     env:
       E2E_DATABASE_URL: postgresql://ripple:ripple@localhost:5432/ripple
       E2E_REDIS_URL: redis://localhost:6379/0
@@ -101,6 +95,17 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # MinIO 不走 services（GitHub services 无法传启动命令，bitnami 免费镜像线已下架）：
+      # 直接 docker run 官方镜像，与本地 docker-compose 保持一致
+      - name: Start MinIO
+        run: |
+          docker run -d --name minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=ripple -e MINIO_ROOT_PASSWORD=ripple123456 \
+            minio/minio:latest server /data
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:9000/minio/health/live && break
+            sleep 1
+          done
       - name: Migrate database
         run: pnpm db:upgrade
       - name: Build web
