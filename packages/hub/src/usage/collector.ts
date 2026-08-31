@@ -3,6 +3,8 @@ import { UsageStore } from './store.js';
 import { claudeCodeProbe } from './probe-claude-code.js';
 import { codexProbe } from './probe-codex.js';
 import { createOpencodeProbe } from './probe-opencode.js';
+import { hermesProbe } from './probe-hermes.js';
+import { dshProbe } from './probe-dsh.js';
 import type { ScanSummary, UsageProbe, UsageSettings, UsageStatEntry } from './types.js';
 
 export interface UsageCollectorOptions {
@@ -19,7 +21,7 @@ export interface UsageCollectorOptions {
 
 /** 内置 probe 注册表：新增 Agent 采集只在此追加条目 */
 export function defaultProbes(): UsageProbe[] {
-  return [claudeCodeProbe, codexProbe, createOpencodeProbe()];
+  return [claudeCodeProbe, codexProbe, createOpencodeProbe(), hermesProbe, dshProbe];
 }
 
 /**

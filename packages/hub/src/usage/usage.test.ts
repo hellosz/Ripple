@@ -249,3 +249,92 @@ describe('采集开关语义（隐私边界）', () => {
     expect(summary.sources.some((s) => s.agent === 'codex')).toBe(false);
   });
 });
+
+describe('hermes probe：skill_view 结构化证据', () => {
+  const toolLine = (skill: string, callId: string, ts = '2026-05-12T13:20:00'): string =>
+    JSON.stringify({
+      role: 'tool',
+      name: 'skill_view',
+      tool_call_id: callId,
+      timestamp: ts,
+      content: JSON.stringify({ success: true, name: skill }),
+    });
+
+  function writeSession(name: string, lines: string[]): string {
+    const dir = join(home, '.hermes', 'sessions');
+    mkdirSync(dir, { recursive: true });
+    const file = join(dir, name);
+    writeFileSync(file, lines.join('\n') + '\n');
+    return file;
+  }
+
+  it('识别 skill_view 成功结果；meta/失败/非 skill_view 不计', async () => {
+    writeSession('20260512_131425_ab.jsonl', [
+      JSON.stringify({ role: 'session_meta', tools: [{ function: { name: 'skill_view' } }], timestamp: 'x' }),
+      toolLine('trace-id-diagnosis', 'call_1'),
+      JSON.stringify({ role: 'tool', name: 'skill_view', tool_call_id: 'call_2', content: JSON.stringify({ success: false, name: 'nope' }) }),
+      JSON.stringify({ role: 'tool', name: 'terminal', tool_call_id: 'call_3', content: '{}' }),
+    ]);
+    const { hermesProbe } = await import('./probe-hermes.js');
+    const collector = makeCollector({ probes: [hermesProbe] });
+    const summary = await collector.scanAll();
+    expect(summary.added).toBe(1);
+    const stats = collector.stats('trace-id-diagnosis');
+    expect(stats[0]).toMatchObject({ agent: 'hermes', count: 1 });
+  });
+
+  it('增量续读：追加后二扫只出新事件；重扫幂等', async () => {
+    const file = writeSession('20260513_101010_cd.jsonl', [toolLine('demo-deploy', 'call_a')]);
+    const { hermesProbe } = await import('./probe-hermes.js');
+    const collector = makeCollector({ probes: [hermesProbe] });
+    expect((await collector.scanAll()).added).toBe(1);
+    appendFileSync(file, toolLine('demo-review', 'call_b') + '\n');
+    expect((await collector.scanAll()).added).toBe(1);
+    expect((await collector.scanAll()).added).toBe(0);
+  });
+});
+
+describe('deepseek-harness probe：zstd 多帧与白名单', () => {
+  it('inflateZstdFrames 解出全部帧（含伪 magic 合并重试路径）', async () => {
+    const zlib = await import('node:zlib');
+    const z = zlib as unknown as { zstdCompressSync?: (b: Buffer) => Buffer; zstdDecompressSync?: (b: Buffer) => Buffer };
+    if (!z.zstdCompressSync || !z.zstdDecompressSync) return; // Node 无 zstd 时跳过
+    const { inflateZstdFrames } = await import('./probe-dsh.js');
+    const f1 = z.zstdCompressSync(Buffer.from('line-one\n'));
+    const f2 = z.zstdCompressSync(Buffer.from('line-two\n'));
+    const text = inflateZstdFrames(Buffer.concat([f1, f2]), z.zstdDecompressSync);
+    expect(text).toBe('line-one\nline-two\n');
+  });
+
+  it('会话解析：白名单过滤、cwd/time 关联；未变更跳过重扫', async () => {
+    const zlib = await import('node:zlib');
+    const z = zlib as unknown as { zstdCompressSync?: (b: Buffer) => Buffer };
+    if (!z.zstdCompressSync) return;
+    const dir = join(home, '.dsh', 'sessions', '--proj--', 'session-1234');
+    mkdirSync(dir, { recursive: true });
+    const lines = [
+      JSON.stringify({ type: 'session', id: 'session-1234', createdAt: 1786672930675, cwd: '/var/www/proj' }),
+      JSON.stringify({ type: 'tool/result', time: 1786673700293, data: { output: 'cat /home/u/.agents/skills/demo-deploy/SKILL.md' } }),
+      JSON.stringify({ type: 'tool/result', time: 1786673700300, data: { output: 'cat skills/unknown-skill/SKILL.md' } }),
+    ];
+    const frames = lines.map((l) => z.zstdCompressSync!(Buffer.from(l + '\n')));
+    writeFileSync(join(dir, 'session.jsonl.zstd'), Buffer.concat(frames));
+    const { dshProbe } = await import('./probe-dsh.js');
+    const collector = makeCollector({ probes: [dshProbe] });
+    const summary = await collector.scanAll();
+    expect(summary.added).toBe(1);
+    const stats = collector.stats('demo-deploy');
+    expect(stats[0]).toMatchObject({ agent: 'deepseek-harness', count: 1 });
+    expect(stats[0]!.projects['/var/www/proj']).toBe(1);
+    // 未变更：二扫零新增且跳过（files 仍计数，added 0）
+    const again = await collector.scanAll();
+    expect(again.added).toBe(0);
+  });
+
+  it('available 依赖 zstdDecompressSync 存在', async () => {
+    const { dshProbe } = await import('./probe-dsh.js');
+    const zlib = await import('node:zlib');
+    const has = typeof (zlib as unknown as { zstdDecompressSync?: unknown }).zstdDecompressSync === 'function';
+    expect(dshProbe.available()).toBe(has);
+  });
+});

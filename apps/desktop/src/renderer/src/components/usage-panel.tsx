@@ -6,9 +6,9 @@ import { ripple } from '../ripple-api.js';
 import { errText, useStore } from '../store.js';
 import { AMBER, DANGER, GREEN_DEEP, INK, MONO, PRIMARY, dim, fmtRelative, gradBtn, outlineBtn } from '../ui.js';
 
-/** 证据等级标注：codex 为路径启发式，其余 probe 为结构化工具调用 */
+/** 证据等级标注：codex/deepseek-harness 为路径启发式，其余 probe 为结构化工具调用 */
 export function evidenceBadge(agent: string): ReactElement {
-  const heuristic = agent === 'codex';
+  const heuristic = agent === 'codex' || agent === 'deepseek-harness';
   return (
     <span
       title={
@@ -181,7 +181,7 @@ export function UsageBlock({
 }
 
 /** 采集覆盖的 Agent（与内核 probe 注册表一致） */
-const PROBE_AGENTS = ['claude-code', 'opencode', 'codex'];
+const PROBE_AGENTS = ['claude-code', 'opencode', 'codex', 'hermes', 'deepseek-harness'];
 
 const panelStyle: CSSProperties = {
   border: '1px solid rgba(63,68,56,.09)',
