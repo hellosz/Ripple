@@ -145,6 +145,9 @@ function SourcesTab(): ReactElement {
           <span className="rp-chip" onClick={() => setLocation('shared')} style={segStyle(settings?.storage_location === 'shared')}>
             共享 ~/.agents/skills
           </span>
+          <span style={{ color: 'rgba(63,68,56,.45)', fontSize: 11.5 }}>
+            仅决定 Ripple 自装技能的存放；~/.agents/skills 社区共享目录始终被识别与展示
+          </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12.5 }}>
           <span style={{ width: 70, color: dim(0.5), flex: 'none' }}>分发方式</span>

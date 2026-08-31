@@ -166,13 +166,19 @@ describe('安装与分发', () => {
 });
 
 describe('同步收敛', () => {
-  it('勾选集合决定最终安装矩阵', () => {
+  it('勾选集合决定最终安装矩阵（共享型 Agent 默认共享落点，dedicated 显式专属）', () => {
     mkdirSync(join(home, '.codex'));
     hub.install(payload('demo-skill'), [{ agent: 'claude-code' }]);
     hub.sync('demo-skill', [{ agent: 'codex' }]);
     expect(existsSync(join(home, '.claude', 'skills', 'demo-skill'))).toBe(false);
-    expect(existsSync(join(home, '.codex', 'skills', 'demo-skill'))).toBe(true);
+    // codex 支持共享标准：默认经 ~/.agents/skills 共享（内置 SSOT → 建链接），不落 .codex 专属目录
+    expect(existsSync(join(home, '.codex', 'skills', 'demo-skill'))).toBe(false);
+    expect(lstatSync(join(home, '.agents', 'skills', 'demo-skill')).isSymbolicLink()).toBe(true);
     expect(hub.state.installs.map((i) => i.agent)).toEqual(['codex']);
+    expect(hub.state.installs[0]!.mode).toBe('shared');
+    // 显式 dedicated → 专属分发
+    hub.sync('demo-skill', [{ agent: 'codex', dedicated: true }]);
+    expect(existsSync(join(home, '.codex', 'skills', 'demo-skill'))).toBe(true);
     const history = hub.state.history['demo-skill']!;
     expect(history[0]!.action).toBe('sync');
   });
@@ -767,5 +773,60 @@ describe('desktop-refinements-v3：场景分析 / 素材预览 / github.com 来�
       'host',
       'gitlab.corp.local',
     );
+  });
+});
+
+describe('decouple-shared-storage：共享目录始终识别 / 共享落点解耦', () => {
+  it('内置存储下识别共享目录中的第三方技能（解析回退）', () => {
+    // hub 处于 builtin；第三方工具直接把技能放进 ~/.agents/skills
+    const sharedDir = join(home, '.agents', 'skills', 'ask-matt');
+    mkdirSync(sharedDir, { recursive: true });
+    writeFileSync(join(sharedDir, 'SKILL.md'), skillMd('ask-matt'));
+    expect(hub.listSkillNames()).toContain('ask-matt');
+    expect(hub.skillDir('ask-matt')).toBe(sharedDir);
+    expect(hub.skillInSharedDir('ask-matt')).toBe(true);
+    // 同名技能装进内置 SSOT 后以 SSOT 为准
+    hub.install(payload('ask-matt'), [{ agent: 'claude-code' }]);
+    expect(hub.skillDir('ask-matt')).toBe(join(home, '.ripple', 'skills', 'ask-matt'));
+  });
+
+  it('内置 SSOT 技能共享 → 共享目录建 symlink；移除后仅删链接不碰第三方内容', () => {
+    mkdirSync(join(home, '.codex'), { recursive: true });
+    hub.install(payload('foo'), [{ agent: 'claude-code' }]);
+    // 第三方真实目录（应始终不动）
+    const thirdParty = join(home, '.agents', 'skills', 'vendor-skill');
+    mkdirSync(thirdParty, { recursive: true });
+    writeFileSync(join(thirdParty, 'SKILL.md'), skillMd('vendor-skill'));
+    // 共享到支持共享标准的 codex
+    const rec = hub.addPlacement('foo', { agent: 'codex' });
+    expect(rec.mode).toBe('shared');
+    const link = join(home, '.agents', 'skills', 'foo');
+    expect(lstatSync(link).isSymbolicLink()).toBe(true);
+    expect(hub.skillInSharedDir('foo')).toBe(true);
+    // 移除该共享落点：链接被删，第三方目录保留
+    hub.uninstall('foo', { agent: 'codex' });
+    expect(existsSync(link)).toBe(false);
+    expect(existsSync(join(thirdParty, 'SKILL.md'))).toBe(true);
+  });
+
+  it('共享目录存在同名非技能残留时共享失败并明示，不覆盖', () => {
+    mkdirSync(join(home, '.codex'), { recursive: true });
+    hub.install(payload('bar'), [{ agent: 'claude-code' }]);
+    const conflict = join(home, '.agents', 'skills', 'bar');
+    mkdirSync(conflict, { recursive: true });
+    writeFileSync(join(conflict, 'notes.txt'), 'user content');
+    expect(() => hub.addPlacement('bar', { agent: 'codex' })).toThrow(/不会覆盖/);
+    expect(readFileSync(join(conflict, 'notes.txt'), 'utf8')).toBe('user content');
+  });
+
+  it('通用存储模式行为不变：SSOT 即共享目录，零分发', () => {
+    const hub2 = new RippleHub({ homeDir: home });
+    hub2.state.storage_location = 'shared';
+    mkdirSync(join(home, '.codex'), { recursive: true });
+    hub2.install(payload('baz'), [{ agent: 'codex' }]);
+    const rec = hub2.state.installs.find((i) => i.skill === 'baz' && i.agent === 'codex')!;
+    expect(rec.mode).toBe('shared');
+    // SSOT 本体在共享目录，不是链接
+    expect(lstatSync(join(home, '.agents', 'skills', 'baz')).isSymbolicLink()).toBe(false);
   });
 });

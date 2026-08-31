@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { buildZip, extractSkillMeta, parseFrontmatter, readZipEntries } from '@ripple/skill-core';
@@ -70,8 +70,46 @@ export class RippleHub {
       : join(this.homeDir, '.agents', 'skills');
   }
 
-  skillDir(name: string): string {
+  /** 社区共享目录（生态标准）：无论存储位置配置为何，始终被识别 */
+  get sharedDir(): string {
+    return join(this.homeDir, '.agents', 'skills');
+  }
+
+  /** 自有 SSOT 落点（写入用）：install/update 一律写这里，绝不写入共享目录第三方内容 */
+  primarySkillDir(name: string): string {
     return join(this.storageDir(), name);
+  }
+
+  /** 技能目录解析（读取用）：自有 SSOT 优先，共享目录回退；都不存在时返回 SSOT 默认路径 */
+  skillDir(name: string): string {
+    const primary = join(this.storageDir(), name);
+    if (existsSync(join(primary, 'SKILL.md'))) return primary;
+    const shared = join(this.sharedDir, name);
+    if (existsSync(join(shared, 'SKILL.md'))) return shared;
+    return primary;
+  }
+
+  /** 技能是否实际位于共享目录（含经我方 symlink 共享的情形） */
+  skillInSharedDir(name: string): boolean {
+    return existsSync(join(this.sharedDir, name, 'SKILL.md'));
+  }
+
+  /** 枚举全部可识别技能：SSOT 根 ∪ 共享目录（去重） */
+  listSkillNames(): string[] {
+    const names = new Set<string>();
+    for (const root of new Set([this.storageDir(), this.sharedDir])) {
+      if (!existsSync(root)) continue;
+      try {
+        for (const entry of readdirSync(root, { withFileTypes: true })) {
+          if (entry.isDirectory() && existsSync(join(root, entry.name, 'SKILL.md'))) {
+            names.add(entry.name);
+          }
+        }
+      } catch {
+        /* 单根不可读时跳过 */
+      }
+    }
+    return [...names];
   }
 
   save(): void {
@@ -97,7 +135,7 @@ export class RippleHub {
   // ---- 内容 ----
 
   writeSkillContent(payload: SkillPayload): void {
-    const dir = this.skillDir(payload.meta.name);
+    const dir = this.primarySkillDir(payload.meta.name);
     this.state.owned[payload.meta.name] = true;
     removePath(dir);
     for (const [rel, data] of Object.entries(payload.files)) {
@@ -145,14 +183,22 @@ export class RippleHub {
     const version = this.installedVersion(skill) ?? '0.0.0';
     const adapter = getAdapter(target.agent);
     if (!adapter) throw new Error(`Unknown agent: ${target.agent}`);
-    // 共享目录标准：存储位于 ~/.agents/skills 且 Agent 原生支持时零分发（除非显式 dedicated 个性化）
+    // 共享目录标准：技能实际位于 ~/.agents/skills 且 Agent 原生支持时零分发（除非显式 dedicated 个性化）；
+    // 技能在内置 SSOT 时执行共享 → 在共享目录建指向 SSOT 的 symlink（与存储位置配置解耦）
     let mode: EffectiveMode;
     if (
       !target.dedicated &&
       adapter.sharedDirSupport &&
-      this.state.storage_location === 'shared' &&
       !target.projectDir
     ) {
+      if (!this.skillInSharedDir(skill)) {
+        const linkPath = join(this.sharedDir, skill);
+        if (existsSync(linkPath)) {
+          // 同名但无 SKILL.md 的残留/第三方内容：明示冲突，不覆盖
+          throw new Error(`共享目录已存在同名内容：${linkPath}（不会覆盖，请先处理冲突）`);
+        }
+        distribute(src, linkPath, this.state.dist_mode, this.platform);
+      }
       // 清理此前的专属分发（仅 hub 创建的链接，copy 形态可能是用户原有内容不动）
       const prev = this.findInstall(skill, target);
       if (prev && (prev.mode === 'symlink' || prev.mode === 'junction')) {
@@ -227,14 +273,12 @@ export class RippleHub {
     for (const install of this.state.installs) {
       if (agentIds.includes(install.agent)) skills.add(install.skill);
     }
-    // 支持共享标准的 Agent：共享存储中的全部技能视同已安装
-    if (this.state.storage_location === 'shared') {
-      const sharedAgents = agentIds.filter((id) => getAdapter(id)?.sharedDirSupport);
-      if (sharedAgents.length > 0 && existsSync(this.storageDir())) {
-        for (const entry of readdirSync(this.storageDir(), { withFileTypes: true })) {
-          if (entry.isDirectory() && existsSync(join(this.storageDir(), entry.name, 'SKILL.md'))) {
-            skills.add(entry.name);
-          }
+    // 支持共享标准的 Agent：共享目录中的全部技能视同已安装（与存储位置配置解耦）
+    const sharedAgents = agentIds.filter((id) => getAdapter(id)?.sharedDirSupport);
+    if (sharedAgents.length > 0 && existsSync(this.sharedDir)) {
+      for (const entry of readdirSync(this.sharedDir, { withFileTypes: true })) {
+        if (existsSync(join(this.sharedDir, entry.name, 'SKILL.md'))) {
+          skills.add(entry.name);
         }
       }
     }
@@ -272,7 +316,26 @@ export class RippleHub {
   }
 
   private removeDistribution(record: InstallRecord): void {
-    if (record.mode === 'shared') return; // 共享标准引入：无专属落盘可移除
+    if (record.mode === 'shared') {
+      // 该技能若无其他 shared 落点，且共享目录条目是我方创建的指向 SSOT 的链接 → 一并清理；
+      // 真实目录（社区第三方内容）绝不删除
+      const others = this.state.installs.some(
+        (i) => i !== record && i.skill === record.skill && i.mode === 'shared',
+      );
+      if (!others) {
+        const linkPath = join(this.sharedDir, record.skill);
+        try {
+          const stat = lstatSync(linkPath);
+          if (stat.isSymbolicLink()) {
+            const resolved = realpathSync(linkPath);
+            if (resolved.startsWith(this.storageDir('builtin'))) removePath(linkPath);
+          }
+        } catch {
+          /* 不存在或不可读：无需处理 */
+        }
+      }
+      return;
+    }
     const target: InstallTarget = {
       agent: record.agent,
       ...(record.scope === 'global' ? {} : { projectDir: record.scope }),
