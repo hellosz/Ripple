@@ -757,9 +757,8 @@ export class RippleHub {
   removeSource(id: string): void {
     const source = this.state.sources.find((s) => s.id === id);
     if (!source) throw new Error(`Source '${id}' not found`);
-    if (source.builtin) throw new Error('Builtin source cannot be removed');
     this.state.sources = this.state.sources.filter((s) => s.id !== id);
-    this.logOp('移除来源', id, '已装技能保留');
+    this.logOp('移除来源', id, source.builtin ? '内置仓库（可重新添加恢复）· 已装技能保留' : '已装技能保留');
     this.save();
   }
 

@@ -93,6 +93,15 @@ describe('state 持久化', () => {
     expect(loadState(join(home, '.ripple')).default_agent).toBe('codex');
   });
 
+  it('hidden_files 默认值存在；旧 state 文件加载后自动补齐（前向兼容）', () => {
+    expect(defaultState().hidden_files).toContain('.openskills.json');
+    const legacy = { ...defaultState() } as Record<string, unknown>;
+    delete legacy.hidden_files;
+    mkdirSync(join(home, '.ripple'), { recursive: true });
+    writeFileSync(join(home, '.ripple', 'state.json'), JSON.stringify(legacy));
+    expect(loadState(join(home, '.ripple')).hidden_files).toContain('.openskills.json');
+  });
+
   it('损坏文件回退默认状态', () => {
     mkdirSync(join(home, '.ripple'), { recursive: true });
     writeFileSync(join(home, '.ripple', 'state.json'), '{broken json');
@@ -290,8 +299,11 @@ describe('来源', () => {
     expect(existsSync(join(home, '.ripple', 'skills', 'foo', 'SKILL.md'))).toBe(true);
   });
 
-  it('内置来源不可删除；移除自定义来源后已装技能保留', async () => {
-    expect(() => hub.removeSource('anthropics/skills')).toThrow();
+  it('内置来源可移除并可重新添加；移除自定义来源后已装技能保留', async () => {
+    hub.removeSource('anthropics/skills');
+    expect(hub.listSources().find((s) => s.id === 'anthropics/skills')).toBeUndefined();
+    hub.addSource('anthropics/skills');
+    expect(hub.listSources().find((s) => s.id === 'anthropics/skills')).toBeDefined();
     const tarGz = gzipSync(buildTar({ 'r-main/foo/SKILL.md': strToU8(skillMd('foo')) }));
     const fetchImpl = (async () => new Response(tarGz.slice().buffer)) as unknown as typeof fetch;
     const hub3 = new RippleHub({ homeDir: home, fetchImpl });

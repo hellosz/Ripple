@@ -43,6 +43,8 @@ function SourcesTab(): ReactElement {
   const [formOpen, setFormOpen] = useState(false);
   const [draft, setDraft] = useState('');
   const [browse, setBrowse] = useState<{ id: string; label: string } | null>(null);
+  /** 两次点击确认移除的仓库 id */
+  const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
 
   const setLocation = (loc: 'builtin' | 'shared'): void => {
     if (settings?.storage_location === loc) return;
@@ -83,11 +85,20 @@ function SourcesTab(): ReactElement {
     });
   };
 
-  const removeRepo = (id: string, label: string): void => {
+  const removeRepo = (id: string, label: string, builtin: boolean): void => {
+    if (confirmRemove !== id) {
+      setConfirmRemove(id);
+      return;
+    }
+    setConfirmRemove(null);
     store.run(async () => {
       await ripple.removeSource(id);
       await store.refresh();
-      store.toast(`已移除仓库 ${label}（已装技能保留，不再更新）`);
+      store.toast(
+        builtin
+          ? `已移除内置仓库 ${label}（可通过「添加仓库」输入 ${id} 恢复）`
+          : `已移除仓库 ${label}（已装技能保留，不再更新）`,
+      );
     });
   };
 
@@ -219,15 +230,26 @@ function SourcesTab(): ReactElement {
               >
                 浏览技能
               </span>
-              {!rp.builtin && (
-                <span
-                  className="rp-hover-danger"
-                  onClick={() => removeRepo(rp.id, `${rp.owner}/${rp.repo}`)}
-                  style={{ color: 'rgba(75,80,64,.35)', cursor: 'pointer', padding: '2px 6px', borderRadius: 5 }}
-                >
-                  移除
-                </span>
-              )}
+              <span
+                className="rp-hover-danger"
+                onClick={() => removeRepo(rp.id, `${rp.owner}/${rp.repo}`, rp.builtin)}
+                title={
+                  rp.builtin
+                    ? `移除后可通过「添加仓库」输入 ${rp.id} 重新恢复`
+                    : '移除仓库订阅（已装技能保留）'
+                }
+                style={{
+                  color: confirmRemove === rp.id ? '#bd8578' : 'rgba(75,80,64,.35)',
+                  fontWeight: confirmRemove === rp.id ? 700 : undefined,
+                  cursor: 'pointer',
+                  padding: '2px 6px',
+                  borderRadius: 5,
+                  whiteSpace: 'nowrap',
+                  flex: 'none',
+                }}
+              >
+                {confirmRemove === rp.id ? '再次点击确认移除' : '移除'}
+              </span>
             </div>
           );
         })}

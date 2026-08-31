@@ -10,7 +10,6 @@ import { targetKey, useStore } from '../store.js';
 import {
   AMBER,
   DANGER,
-  GREEN_DEEP,
   INK,
   MONO,
   PRIMARY,
@@ -108,8 +107,17 @@ export function SkillListView(): ReactElement {
       origin: originLabel(all[0]?.origin),
     };
   };
-  const matchQuery = (r: SkillRowData): boolean =>
-    !q || r.name.includes(q) || r.description.includes(q);
+  const matchQuery = (r: SkillRowData): boolean => {
+    if (!q) return true;
+    if (r.name.includes(q) || r.description.includes(q)) return true;
+    // 场景分析标签与概要也参与过滤（标签点击快捷搜索）
+    const sc = snapshot.scenarios[r.name];
+    if (!sc) return false;
+    return (
+      sc.summary.includes(q) ||
+      SCENARIO_GROUPS.some((g) => sc.tags[g.key].some((t) => t.includes(q)))
+    );
+  };
 
   const nameSet = new Set(scoped.map((i) => i.skill));
   // 未纳管但位于共享库中的技能（snapshot.skills 有、installs 无）也进入本地技能列表
@@ -172,18 +180,30 @@ export function SkillListView(): ReactElement {
     });
   };
 
-  /** placement 记号：通用=圆点（绿），专属=方块（橄榄）；双态可同时出现 */
-  const markStyle = (color: string, square: boolean, right: boolean, outline: boolean): CSSProperties => ({
-    position: 'absolute',
-    bottom: -3,
-    ...(right ? { right: -3 } : { left: -3 }),
-    width: 9,
-    height: 9,
-    borderRadius: square ? 2.5 : 999,
-    background: outline ? '#ffffff' : color,
-    border: `1.5px solid ${color}`,
-    boxSizing: 'border-box',
-  });
+  /** 专属分发小徽记：中性墨色小别针，叠在 agent 图标右下角（通用是默认态，不加记号） */
+  const dedicatedMark = (
+    <span
+      style={{
+        position: 'absolute',
+        bottom: -3,
+        right: -3,
+        width: 11,
+        height: 11,
+        borderRadius: 999,
+        background: '#ffffff',
+        border: '1px solid rgba(63,68,56,.22)',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        boxSizing: 'border-box',
+      }}
+    >
+      <svg width="7" height="7" viewBox="0 0 24 24" fill="rgba(63,68,56,.6)" stroke="rgba(63,68,56,.6)" strokeWidth="2" strokeLinecap="round">
+        <path d="M9 4h6l-1 6 3 3H7l3-3z" />
+        <path d="M12 13v7" fill="none" />
+      </svg>
+    </span>
+  );
 
   const renderCell = (row: SkillRowData, a: AgentSummary): ReactElement => {
     const st = cellStatus(row.name, a);
@@ -217,11 +237,11 @@ export function SkillListView(): ReactElement {
     if (st.shared) {
       tipLines.push(
         st.implicit
-          ? '○ 通用 · 经 ~/.agents/skills 共享目录标准自动可用'
-          : '● 通用 · 分发于 ~/.agents/skills（共享目录标准）',
+          ? '通用 · 经 ~/.agents/skills 共享目录标准自动可用'
+          : '通用 · 分发于 ~/.agents/skills（共享目录标准）',
       );
     }
-    if (st.dedicated) tipLines.push(`■ 专属 · 分发于 ~/${a.globalRelPath}（仅 ${a.name}）`);
+    if (st.dedicated) tipLines.push(`专属 · 分发于 ~/${a.globalRelPath}（仅 ${a.name}）`);
     if (!st.enabled) tipLines.push('已禁用');
     return (
       <span
@@ -229,20 +249,13 @@ export function SkillListView(): ReactElement {
         title={`${a.name}\n${tipLines.join('\n')}`}
         style={{
           ...base,
-          border: `1px solid ${st.dedicated ? 'rgba(107,127,67,.45)' : 'rgba(127,165,136,.5)'}`,
-          background: st.dedicated
-            ? st.shared
-              ? 'linear-gradient(135deg, rgba(127,165,136,.14) 50%, rgba(147,168,107,.18) 50%)'
-              : 'rgba(147,168,107,.14)'
-            : st.implicit
-              ? undefined
-              : 'rgba(127,165,136,.12)',
+          border: `1px solid rgba(63,68,56,${st.implicit ? '.1' : '.16'})`,
+          background: st.implicit ? undefined : 'rgba(63,68,56,.04)',
           opacity: st.enabled ? 1 : 0.45,
         }}
       >
         <AgentIcon agentId={a.id} name={a.name} size={15} />
-        {st.shared && <span style={markStyle(GREEN_DEEP, false, true, st.implicit)} />}
-        {st.dedicated && <span style={markStyle(PRIMARY, true, false, false)} />}
+        {st.dedicated && dedicatedMark}
       </span>
     );
   };
@@ -261,7 +274,12 @@ export function SkillListView(): ReactElement {
         {picks.map((p) => (
           <span
             key={`${p.group}\n${p.tag}`}
-            title={`${p.group} · ${p.tag}（AI 场景分析）`}
+            className="rp-chip"
+            title={`${p.group} · ${p.tag}（AI 场景分析）· 点击筛选同标签技能`}
+            onClick={(e) => {
+              e.stopPropagation();
+              store.setQuery(p.tag);
+            }}
             style={{
               fontSize: 9.5,
               fontWeight: 700,
@@ -271,6 +289,7 @@ export function SkillListView(): ReactElement {
               color: p.color,
               whiteSpace: 'nowrap',
               flex: 'none',
+              cursor: 'pointer',
             }}
           >
             {p.tag}

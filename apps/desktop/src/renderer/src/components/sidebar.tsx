@@ -85,9 +85,17 @@ export function Sidebar(): ReactElement {
 
   // 更新中心徽标 = 市场更新（需登录）+ 社区开源指纹变化
   const updateBadge = (loggedIn ? updates.length : 0) + communityUpdates;
+  const tasksIcon = (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" style={{ verticalAlign: '-1px' }}>
+      <path d="M4 7l1.6 1.6L8.8 5.4" />
+      <path d="M12 7h8" />
+      <path d="M4 15l1.6 1.6 3.2-3.2" />
+      <path d="M12 15h8" />
+    </svg>
+  );
   const mainNav: {
-    key: 'local' | 'market' | 'community' | 'updates';
-    icon: string;
+    key: 'local' | 'market' | 'community' | 'tasks' | 'updates';
+    icon: string | ReactElement;
     name: string;
     badge: number | null;
     locked: boolean;
@@ -95,6 +103,7 @@ export function Sidebar(): ReactElement {
     { key: 'local', icon: '▦', name: '本地技能', badge: null, locked: false },
     { key: 'market', icon: '◎', name: '技能市场', badge: null, locked: !loggedIn },
     { key: 'community', icon: '⌂', name: '社区开源', badge: null, locked: false },
+    { key: 'tasks', icon: tasksIcon, name: '任务', badge: null, locked: false },
     {
       key: 'updates',
       icon: '↻',

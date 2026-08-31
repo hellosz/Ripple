@@ -224,8 +224,16 @@ const handlers: Record<string, RpcHandler> = {
   aiSetConfig: (input: { provider: AiProvider; baseUrl?: string; model?: string; apiKey?: string }) =>
     aiService.setConfig(input),
   aiTest: () => aiService.test(),
-  aiScore: (skill: string) => skillAi.score(services.hub.readSkillFiles(skill)),
-  aiOptimize: (skill: string) => skillAi.optimize(services.hub.readSkillFiles(skill)),
+  aiScore: async (skill: string) => {
+    const result = await skillAi.score(services.hub.readSkillFiles(skill));
+    services.hub.logOp('AI 评分', skill, `${result.total} 分 · ${result.grade} 级${result.source === 'fallback' ? ' · 本地规则' : ''}`);
+    return result;
+  },
+  aiOptimize: async (skill: string) => {
+    const result = await skillAi.optimize(services.hub.readSkillFiles(skill));
+    services.hub.logOp('AI 优化建议', skill, `${result.suggestions.length} 条建议 · ${result.patches.length} 个补丁`);
+    return result;
+  },
   aiScenario: async (skill: string, force?: boolean) => {
     const fingerprint = services.hub.fingerprintOf(skill);
     if (!fingerprint) throw new Error(`Skill '${skill}' not in central storage`);
@@ -239,6 +247,10 @@ const handlers: Record<string, RpcHandler> = {
     return { ...analysis, stale: false };
   },
   aiUsage: () => aiService.getUsage(),
+  logTask: (title: string, detail: string) => {
+    services.hub.logOp('任务', title, detail);
+    return { ok: true };
+  },
   readSkillAsset: (skill: string, path: string) => services.hub.readSkillAsset(skill, path),
   aiApplyPatches: (skill: string, patches: AiPatch[]) => {
     let applied = 0;
@@ -246,6 +258,7 @@ const handlers: Record<string, RpcHandler> = {
       services.hub.writeSkillFile(skill, patch.path, patch.new_content);
       applied++;
     }
+    services.hub.logOp('应用优化', skill, `${applied} 个文件已落盘`);
     return { applied };
   },
 

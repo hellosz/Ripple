@@ -52,6 +52,7 @@ const rpcMethods = [
   'aiApplyPatches',
   'aiScenario',
   'aiUsage',
+  'logTask',
   'readSkillAsset',
   'appVersion',
   'checkAppUpdate',

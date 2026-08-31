@@ -8,6 +8,7 @@ import { UpdateBanner } from './components/update-banner.js';
 import { SkillListView } from './views/skill-list.js';
 import { MarketView } from './views/market.js';
 import { CommunityView } from './views/community.js';
+import { TasksView } from './views/tasks.js';
 import { UpdatesView } from './views/updates.js';
 import { SettingsView } from './views/settings.js';
 import { GateView } from './views/gate.js';
@@ -22,6 +23,7 @@ function Content(): ReactElement {
   if (view.kind === 'market') return loggedIn ? <MarketView /> : <GateView kind="market" />;
   if (view.kind === 'community') return <CommunityView />;
   // 更新中心不再整体门控：社区开源更新无需登录，市场节内单独提示登录
+  if (view.kind === 'tasks') return <TasksView />;
   if (view.kind === 'updates') return <UpdatesView />;
   if (view.kind === 'settings') return <SettingsView />;
   return <SkillListView />;

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties, ReactElement } from 'react';
+import { useStore } from '../store.js';
 import { MONO, dim, fmtBytes } from '../ui.js';
 import { MarkdownView } from './markdown.js';
 import type { AssetLoader } from './markdown.js';
@@ -169,7 +170,19 @@ export interface FileViewerProps {
 
 /** 技能文件浏览器：左侧文件树 + 右侧内容区；Markdown 预览渲染样式（可切原文），二进制素材内联预览 */
 export function FileViewer({ files, height, onSave, loadAsset }: FileViewerProps): ReactElement {
-  const groups = useMemo(() => groupFiles(files), [files]);
+  // 系统默认配置的隐藏文件（工具元数据如 .openskills.json），默认不进文件树
+  const { snapshot } = useStore();
+  const hiddenNames = snapshot?.settings.hidden_files ?? [];
+  const [showHidden, setShowHidden] = useState(false);
+  const hiddenCount = useMemo(
+    () => files.filter((f) => hiddenNames.includes(baseOf(f.path))).length,
+    [files, hiddenNames],
+  );
+  const visible = useMemo(
+    () => (showHidden ? files : files.filter((f) => !hiddenNames.includes(baseOf(f.path)))),
+    [files, hiddenNames, showHidden],
+  );
+  const groups = useMemo(() => groupFiles(visible), [visible]);
   const [activePath, setActivePath] = useState<string>(
     files.some((f) => f.path === 'SKILL.md') ? 'SKILL.md' : (files[0]?.path ?? ''),
   );
@@ -179,13 +192,13 @@ export function FileViewer({ files, height, onSave, loadAsset }: FileViewerProps
   /** Markdown 显示方式：预览渲染 / 原文 */
   const [mdRaw, setMdRaw] = useState(false);
 
-  // 文件列表变化（如保存后重载）时校正选中项
+  // 文件列表变化（如保存后重载 / 收起隐藏文件）时校正选中项
   useEffect(() => {
-    if (files.length > 0 && !files.some((f) => f.path === activePath)) {
-      setActivePath(files.some((f) => f.path === 'SKILL.md') ? 'SKILL.md' : (files[0]?.path ?? ''));
+    if (visible.length > 0 && !visible.some((f) => f.path === activePath)) {
+      setActivePath(visible.some((f) => f.path === 'SKILL.md') ? 'SKILL.md' : (visible[0]?.path ?? ''));
       setEditing(false);
     }
-  }, [files, activePath]);
+  }, [visible, activePath]);
 
   const active = files.find((f) => f.path === activePath) ?? null;
   const activeIsMd = active !== null && !active.binary && isMarkdown(active.path);
@@ -330,8 +343,30 @@ export function FileViewer({ files, height, onSave, loadAsset }: FileViewerProps
             {g.files.map((f) => fileRow(f, g.dir !== ''))}
           </div>
         ))}
-        {files.length === 0 && (
+        {visible.length === 0 && (
           <div style={{ fontSize: 12, color: dim(0.4), padding: 12, textAlign: 'center' }}>无文件</div>
+        )}
+        {hiddenCount > 0 && (
+          <div
+            className="rp-hover-row"
+            onClick={() => setShowHidden((v) => !v)}
+            title="系统默认隐藏工具元数据文件（可在本地配置 hidden_files 中调整）"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              fontSize: 10.5,
+              color: dim(0.4),
+              padding: '7px 8px 4px',
+              marginTop: 4,
+              borderTop: '1px dashed rgba(63,68,56,.1)',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <span style={{ fontSize: 9 }}>{showHidden ? '▾' : '▸'}</span>
+            {showHidden ? '收起' : '显示'}隐藏文件 ({hiddenCount})
+          </div>
         )}
       </div>
 

@@ -154,6 +154,7 @@ export class DesktopServices {
         default_agent: hub.state.default_agent,
         storage_dir: hub.storageDir(),
         backups_dir: hub.backupsDir,
+        hidden_files: hub.state.hidden_files,
       },
       skills,
       oplog: hub.state.oplog,

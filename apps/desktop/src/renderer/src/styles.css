@@ -199,3 +199,7 @@ input.rp-input::placeholder {
   border-top: 1px dashed rgba(63, 68, 56, 0.15);
   margin: 1.1em 0;
 }
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

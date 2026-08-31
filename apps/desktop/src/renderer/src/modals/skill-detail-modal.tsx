@@ -404,7 +404,18 @@ export function SkillDetailModal(): ReactElement | null {
           </span>
         </div>
         <div style={{ flex: 1, minHeight: 0, padding: '0 22px 18px' }}>
-          {aiView === 'scenario' && <ScenarioPanel skill={skill} onGoAiSettings={goAiSettings} />}
+          {aiView === 'scenario' && (
+            <ScenarioPanel
+              skill={skill}
+              onGoAiSettings={goAiSettings}
+              onTagClick={(tag) => {
+                // 关详情 → 回本地列表并按该标签过滤
+                store.setSkillDetail(null);
+                store.setView({ kind: 'local' });
+                store.setQuery(tag);
+              }}
+            />
+          )}
           {aiView === 'score' && score !== null && !scoring && (
             <ScoreCard result={score} scoring={scoring} onRescore={() => runScore(true)} />
           )}

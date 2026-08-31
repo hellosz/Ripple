@@ -86,6 +86,8 @@ export interface HubState {
   oplog: OpEntry[];
   /** AI 应用场景分析（skill → 结果） */
   scenarios: Record<string, ScenarioAnalysis>;
+  /** 查看器默认隐藏的文件名（系统默认配置，如各工具的元数据文件） */
+  hidden_files: string[];
 }
 
 export interface InstallTarget {

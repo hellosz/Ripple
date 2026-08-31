@@ -18,9 +18,12 @@ type ScenarioResult = ScenarioAnalysis & { stale?: boolean };
 export function ScenarioPanel({
   skill,
   onGoAiSettings,
+  onTagClick,
 }: {
   skill: string;
   onGoAiSettings: () => void;
+  /** 点击标签（快捷搜索同标签技能） */
+  onTagClick?: (tag: string) => void;
 }): ReactElement {
   const store = useStore();
   const cached = store.snapshot?.scenarios[skill] ?? null;
@@ -183,6 +186,9 @@ export function ScenarioPanel({
               {tags.map((t) => (
                 <span
                   key={t}
+                  className={onTagClick ? 'rp-chip' : undefined}
+                  title={onTagClick ? '点击筛选同标签技能' : undefined}
+                  onClick={onTagClick ? () => onTagClick(t) : undefined}
                   style={{
                     fontSize: 11.5,
                     fontWeight: 700,
@@ -191,6 +197,7 @@ export function ScenarioPanel({
                     background: `${g.color}1c`,
                     color: g.color,
                     whiteSpace: 'nowrap',
+                    cursor: onTagClick ? 'pointer' : undefined,
                   }}
                 >
                   {t}

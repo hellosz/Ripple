@@ -51,6 +51,7 @@ export interface HubSnapshot {
     default_agent: string;
     storage_dir: string;
     backups_dir: string;
+    hidden_files: string[];
   };
   /** 每个技能 SSOT 内的当前版本与描述（含未纳管但位于共享库中的技能） */
   skills: Record<string, { version: string | null; description: string | null }>;
@@ -143,6 +144,8 @@ export interface DesktopApi {
   /** 应用场景分析（本地持久化；指纹一致时直接返回缓存，force 强制重新生成） */
   aiScenario(skill: string, force?: boolean): Promise<ScenarioAnalysis & { stale: boolean }>;
   /** AI 调用用量与费用（最近 200 条 + 合计） */
+  /** 任务主日志（批量任务完成后记录；细分日志由各操作自身记录） */
+  logTask(title: string, detail: string): Promise<{ ok: boolean }>;
   aiUsage(): Promise<{
     entries: AiUsageEntry[];
     totals: { calls: number; prompt_tokens: number; completion_tokens: number; cost_usd: number };
