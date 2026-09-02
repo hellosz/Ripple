@@ -59,7 +59,7 @@ export interface HubSnapshot {
     usage_collection: { enabled: boolean; agents: Record<string, boolean> };
   };
   /** 每个技能 SSOT 内的当前版本与描述（含未纳管但位于共享库中的技能） */
-  skills: Record<string, { version: string | null; description: string | null }>;
+  skills: Record<string, { version: string | null; description: string | null ; /** 是否已在 ~/.agents/skills 共享库（含经共享链接） */ shared: boolean }>;
   /** 全局操作日志（倒序） */
   oplog: OpEntry[];
   /** AI 应用场景分析（skill → 结果） */

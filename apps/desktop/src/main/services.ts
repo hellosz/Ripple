@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { app, safeStorage } from 'electron';
 import { RippleClient } from '@ripple/api-client';
@@ -111,20 +111,9 @@ export class DesktopServices {
       installCount: hub.state.installs.filter((i) => i.agent === a.id).length,
     }));
     const skills: HubSnapshot['skills'] = {};
-    // 纳管安装 ∪ SSOT（共享库中未纳管的技能对支持共享标准的 Agent 同样可用）
+    // 纳管安装 ∪ SSOT 根 ∪ 共享目录（~/.agents/skills 始终识别，与存储位置配置解耦）
     const skillNames = new Set(hub.state.installs.map((i) => i.skill));
-    try {
-      const storageDir = hub.storageDir();
-      if (existsSync(storageDir)) {
-        for (const entry of readdirSync(storageDir, { withFileTypes: true })) {
-          if (entry.isDirectory() && existsSync(join(storageDir, entry.name, 'SKILL.md'))) {
-            skillNames.add(entry.name);
-          }
-        }
-      }
-    } catch {
-      /* 存储目录不可读时仅展示纳管安装 */
-    }
+    for (const name of hub.listSkillNames()) skillNames.add(name);
     for (const name of skillNames) {
       let description: string | null = null;
       try {
@@ -138,7 +127,11 @@ export class DesktopServices {
       } catch {
         /* SSOT 缺失 */
       }
-      skills[name] = { version: hub.installedVersion(name), description };
+      skills[name] = {
+        version: hub.installedVersion(name),
+        description,
+        shared: hub.skillInSharedDir(name),
+      };
     }
     return {
       installs: hub.state.installs,

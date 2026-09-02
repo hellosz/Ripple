@@ -23,7 +23,6 @@ export function SyncModal(): ReactElement | null {
 
   const agentName = (id: string): string => snapshot.agents.find((a) => a.id === id)?.name ?? id;
   const defaultAgent = snapshot.settings.default_agent;
-  const storageShared = snapshot.settings.storage_location === 'shared';
   const sharedAgents = snapshot.agents.filter((a) => a.detected && a.sharedDirSupport);
 
   // 共享（通用）模式：AGENT 段 = 「通用」+ 专属项（不支持共享标准的 Agent 必列；
@@ -33,11 +32,10 @@ export function SyncModal(): ReactElement | null {
       .filter((i) => i.skill === sync.skill && i.scope === 'global' && i.mode !== 'shared')
       .map((i) => i.agent),
   );
-  const agentChips = storageShared
-    ? snapshot.agents
-        .filter((a) => (a.detected && !a.sharedDirSupport) || dedicatedIds.has(a.id))
-        .map((a) => ({ key: targetKey(a.id), name: `${a.name} · 专属` }))
-    : snapshot.agents.filter((a) => a.detected).map((a) => ({ key: targetKey(a.id), name: a.name }));
+  // 通用选项恒可用（共享落点与存储位置配置解耦）：专属项 = 不支持共享标准的 Agent + 有历史专属落点者
+  const agentChips = snapshot.agents
+    .filter((a) => (a.detected && !a.sharedDirSupport) || dedicatedIds.has(a.id))
+    .map((a) => ({ key: targetKey(a.id), name: `${a.name} · 专属` }));
 
   const projectChips = snapshot.projects.flatMap((p) => {
     const existing = snapshot.installs.filter((i) => i.skill === sync.skill && i.scope === p.path);
@@ -62,11 +60,13 @@ export function SyncModal(): ReactElement | null {
       if (key === SHARED_TARGET) {
         for (const a of sharedAgents) byKey.set(targetKey(a.id), { agent: a.id });
       } else {
-        byKey.set(key, parseTargetKey(key));
+        const target = parseTargetKey(key);
+        // 显式勾选的全局 Agent 项即「专属」意图（列表中即以 · 专属 标注）
+        byKey.set(key, target.projectDir ? target : { ...target, dedicated: true });
       }
     }
     const targets = [...byKey.values()];
-    const verb = sync.mode === 'registry' ? '安装' : storageShared ? '共享' : '同步';
+    const verb = sync.mode === 'registry' ? '安装' : '共享';
     store.run(async () => {
       if (sync.mode === 'registry') await ripple.installFromRegistry(sync.skill, targets);
       else await ripple.sync(sync.skill, targets);
@@ -113,7 +113,7 @@ export function SyncModal(): ReactElement | null {
         }}
       >
         <div style={{ fontWeight: 900, fontSize: 16, color: INK }}>
-          {sync.mode === 'registry' ? '安装' : storageShared ? '共享' : '同步'}「{sync.title}」
+          {sync.mode === 'registry' ? '安装' : '共享'}「{sync.title}」
         </div>
         <p style={{ margin: '6px 0 16px', fontSize: 12.5, color: dim(0.55) }}>
           选择目标落点，已勾选项将统一为 {sync.version ? `v${sync.version}` : '最新版'}。
@@ -121,7 +121,7 @@ export function SyncModal(): ReactElement | null {
         <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.18em', color: dim(0.4), marginBottom: 8 }}>
           AGENT · 全局
         </div>
-        {storageShared && (
+        {(
           <div
             className="rp-hover-row"
             onClick={() => store.toggleSyncTarget(SHARED_TARGET)}

@@ -262,16 +262,8 @@ export function useAppStore(): Store {
 
   const openRegistrySync = useCallback((skill: string): void => {
     const snap = snapshotRef.current;
-    let selected: Record<string, boolean> = {};
-    if (snap?.settings.storage_location === 'shared') {
-      selected = sharedModeSelection(snap, skill);
-    } else if (snap) {
-      for (const i of snap.installs) {
-        if (i.skill === skill) {
-          selected[targetKey(i.agent, i.scope === 'global' ? undefined : i.scope)] = true;
-        }
-      }
-    }
+    // 归一化默认勾选（已有落点保持勾选；共享落点与存储配置解耦）
+    const selected: Record<string, boolean> = snap ? sharedModeSelection(snap, skill) : {};
     const item = marketRef.current?.find((m) => m.name === skill) ?? null;
     setSync({
       skill,

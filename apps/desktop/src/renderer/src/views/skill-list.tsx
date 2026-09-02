@@ -6,7 +6,7 @@ import { AgentIcon } from '../agent-icons.js';
 import { SCENARIO_GROUPS } from '../components/scenario-panel.js';
 import { UninstallModal } from '../modals/uninstall-modal.js';
 import { ripple } from '../ripple-api.js';
-import { sharedModeSelection, targetKey, useStore } from '../store.js';
+import { sharedModeSelection, useStore } from '../store.js';
 import {
   AMBER,
   DANGER,
@@ -98,7 +98,8 @@ export function SkillListView(): ReactElement {
     return <div style={{ textAlign: 'center', padding: '80px 0', color: dim(0.45) }}>加载中…</div>;
   }
 
-  const storageShared = snapshot.settings.storage_location === 'shared';
+  /** 技能是否已在 ~/.agents/skills 共享库（与存储位置配置解耦） */
+  const inSharedLib = (name: string): boolean => snapshot.skills[name]?.shared === true;
   const updateBySkill = new Map(updates.map((u) => [u.skill, u]));
   const communityChangedBySkill = new Map(
     (community ?? []).filter((c) => c.changed && c.installed).map((c) => [c.name, c]),
@@ -162,16 +163,8 @@ export function SkillListView(): ReactElement {
   };
 
   const openSyncFor = (row: SkillRowData): void => {
-    let selected: Record<string, boolean> = {};
-    if (storageShared) {
-      selected = sharedModeSelection(snapshot, row.name);
-    } else {
-      for (const i of snapshot.installs) {
-        if (i.skill === row.name) {
-          selected[targetKey(i.agent, i.scope === 'global' ? undefined : i.scope)] = true;
-        }
-      }
-    }
+    // 通用/专属选择弹窗统一使用归一化默认勾选（共享落点已与存储配置解耦）
+    const selected = sharedModeSelection(snapshot, row.name);
     store.openSync({
       skill: row.name,
       title: row.name,
@@ -192,7 +185,7 @@ export function SkillListView(): ReactElement {
         enabled: recs.some((i) => i.enabled),
       };
     }
-    if (a.sharedDirSupport && storageShared && skill in snapshot.skills) {
+    if (a.sharedDirSupport && inSharedLib(skill)) {
       return { shared: true, dedicated: false, implicit: true, enabled: true };
     }
     return null;
@@ -426,8 +419,8 @@ export function SkillListView(): ReactElement {
             style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, flex: 'none' }}
           >
             <div style={{ display: 'flex', gap: 8 }}>
-              {/* 已共享或满足共享条件（全局共享模式且技能已在 ~/.agents/skills 共享库）时不显示 */}
-              {!(storageShared && r.name in snapshot.skills) && (
+              {/* 已在 ~/.agents/skills 共享库（含经共享链接）时不显示 */}
+              {!inSharedLib(r.name) && (
                 <span
                   className="rp-btn-outline"
                   onClick={() => openSyncFor(r)}
@@ -476,7 +469,7 @@ export function SkillListView(): ReactElement {
                         animation: 'fade-in .15s ease-out',
                       }}
                     >
-                      {storageShared && r.name in snapshot.skills && (
+                      {inSharedLib(r.name) && (
                         <div
                           className="rp-hover-row"
                           onClick={() => {
