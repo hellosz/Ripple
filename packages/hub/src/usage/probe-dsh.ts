@@ -6,6 +6,7 @@ import { usageEventId } from './store.js';
 import type { JsonlCursor, ProbeContext, ProbeScanResult, UsageEvent, UsageProbe } from './types.js';
 
 const SKILL_PATH_RE = /skills\/([a-z0-9][a-z0-9-]*)\/SKILL\.md/g;
+const RESOURCE_RE = /skills\/([a-z0-9][a-z0-9-]*)\/(references|scripts)\//g;
 /** zstd frame magic（little-endian 0xFD2FB528） */
 const ZSTD_MAGIC = Buffer.from([0x28, 0xb5, 0x2f, 0xfd]);
 /** 每处理这么多帧让出一次事件循环（解压在主进程跑，避免长时间阻塞 UI） */
@@ -81,6 +82,26 @@ export function eventsFromDshSession(
         occurred_at: time ?? fallbackTime,
         evidence: 'path-heuristic',
         source_file: file,
+      });
+    }
+    // references/scripts 跟随访问（不计入使用次数）
+    const seenRes = new Set<string>();
+    for (const match of raw.matchAll(RESOURCE_RE)) {
+      const skill = match[1]!;
+      const resource = match[2] === 'references' ? ('reference' as const) : ('script' as const);
+      const key = `${skill}|${resource}`;
+      if (!known.has(skill) || seenRes.has(key)) continue;
+      seenRes.add(key);
+      events.push({
+        id: usageEventId('deepseek-harness', sessionId, `res:${key}:${raw}`),
+        skill,
+        agent: 'deepseek-harness',
+        session_id: sessionId,
+        project_dir: projectDir,
+        occurred_at: time ?? fallbackTime,
+        evidence: 'path-heuristic',
+        source_file: file,
+        resource,
       });
     }
   }

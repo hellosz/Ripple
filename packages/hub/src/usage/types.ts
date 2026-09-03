@@ -16,6 +16,10 @@ export interface UsageEvent {
   evidence: UsageEvidence;
   /** 证据文件路径（transcript/db） */
   source_file: string;
+  /** 触发方式（可选）：claude-code 可区分 auto（Skill 工具）/ manual（slash 命令）；其他 Agent 缺省 */
+  trigger?: 'auto' | 'manual';
+  /** 资源类型（可选）：缺省为技能触发；reference/script 为加载后的跟随访问，不计入使用次数 */
+  resource?: 'skill' | 'reference' | 'script';
 }
 
 /** jsonl 证据源游标：字节偏移 + 截断检测 */
@@ -92,6 +96,30 @@ export interface UsageSessionEntry {
   count: number;
   /** 技能 → 次数 */
   skills: Record<string, number>;
+}
+
+/** 按技能的质量信号（读侧派生；installed 中无事件的技能也会出现） */
+export interface SkillQualitySignal {
+  skill: string;
+  /** 触发总数（只计触发事件） */
+  triggers: number;
+  /** 手动触发占比（无 trigger 标注的事件不计入分母；无可判定样本为 null） */
+  manual_ratio: number | null;
+  /** 触发会话总数 */
+  sessions: number;
+  /** 同一会话内重复触发（≥2 次）的会话数 */
+  repeat_sessions: number;
+  /** 共现技能 Top（同会话出现的其他技能，按共现会话数） */
+  co_occurs: Array<{ skill: string; sessions: number }>;
+  last_used: string | null;
+  /** 距最近使用的天数；从未使用为 null（配合 never_used） */
+  stale_days: number | null;
+  never_used: boolean;
+  /** references / scripts 跟随率：有对应跟随事件的触发会话数 / 触发会话数（无触发为 null） */
+  reference_follow_rate: number | null;
+  script_follow_rate: number | null;
+  /** 派生建议标签 */
+  labels: Array<'触发失灵' | '死重 references' | '淘汰候选' | 'token 冗长嫌疑'>;
 }
 
 /** scanAll 汇总：每个 probe 一条 source 记录，失败不阻塞其他源 */

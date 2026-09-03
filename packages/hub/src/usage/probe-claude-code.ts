@@ -30,29 +30,73 @@ function parseLine(raw: string): TranscriptLine | null {
   }
 }
 
-/** 从一行 transcript 提取 Skill 工具调用事件（结构化证据） */
-export function eventsFromClaudeLine(raw: string, file: string, fallbackTime: string): UsageEvent[] {
+/** slash 手动触发：user 行的 <command-name>/name</command-name>，去前导 / 与命名空间前缀后须精确命中本地技能名 */
+const COMMAND_NAME_RE = /<command-name>\/?([\w:./-]+)<\/command-name>/;
+/** 技能内子资源访问（references/scripts）：跟随事件，不计入使用次数 */
+const RESOURCE_RE = /skills\/([a-z0-9][a-z0-9-]*)\/(references|scripts)\//g;
+
+/** 从一行 transcript 提取使用事件：Skill 工具调用（auto）、slash 命令（manual）、references/scripts 跟随 */
+export function eventsFromClaudeLine(
+  raw: string,
+  file: string,
+  fallbackTime: string,
+  known: ReadonlySet<string> = new Set(),
+): UsageEvent[] {
   const line = parseLine(raw);
-  const content = line?.message?.content;
-  if (!line || !Array.isArray(content)) return [];
+  if (!line) return [];
   const sessionId = line.sessionId ?? basename(file).replace(/\.jsonl$/, '');
+  const base = {
+    agent: 'claude-code' as const,
+    session_id: sessionId,
+    project_dir: line.cwd ?? '',
+    occurred_at: line.timestamp ?? fallbackTime,
+    evidence: 'tool-call' as const,
+    source_file: file,
+  };
   const events: UsageEvent[] = [];
-  for (const item of content as SkillToolUse[]) {
-    if (typeof item !== 'object' || item === null) continue;
-    if (item.type !== 'tool_use' || item.name !== 'Skill') continue;
-    const skill = typeof item.input?.skill === 'string' ? item.input.skill : null;
-    if (!skill) continue;
-    const callKey = item.id ?? line.uuid ?? `${file}:${raw.length}`;
-    events.push({
-      id: usageEventId('claude-code', sessionId, callKey),
-      skill,
-      agent: 'claude-code',
-      session_id: sessionId,
-      project_dir: line.cwd ?? '',
-      occurred_at: line.timestamp ?? fallbackTime,
-      evidence: 'tool-call',
-      source_file: file,
-    });
+  const content = line.message?.content;
+  if (Array.isArray(content)) {
+    for (const item of content as SkillToolUse[]) {
+      if (typeof item !== 'object' || item === null) continue;
+      if (item.type !== 'tool_use' || item.name !== 'Skill') continue;
+      const skill = typeof item.input?.skill === 'string' ? item.input.skill : null;
+      if (!skill) continue;
+      const callKey = item.id ?? line.uuid ?? `${file}:${raw.length}`;
+      events.push({ ...base, id: usageEventId('claude-code', sessionId, callKey), skill, trigger: 'auto' });
+    }
+  }
+  // manual：仅 user 行，且命令名精确命中本地技能（防插件命名空间误报，宁漏勿误）
+  if (line.type === 'user' && raw.includes('<command-name>')) {
+    const m = COMMAND_NAME_RE.exec(raw);
+    if (m) {
+      const name = m[1]!.replace(/^.*[:/]/, '');
+      if (known.has(name)) {
+        events.push({
+          ...base,
+          id: usageEventId('claude-code', sessionId, `cmd:${line.uuid ?? raw.slice(0, 80)}`),
+          skill: name,
+          trigger: 'manual',
+        });
+      }
+    }
+  }
+  // references/scripts 跟随（路径可出现在任意工具入参中；技能名过白名单）
+  if (raw.includes('skills/')) {
+    const seen = new Set<string>();
+    for (const match of raw.matchAll(RESOURCE_RE)) {
+      const skill = match[1]!;
+      const resource = match[2] === 'references' ? ('reference' as const) : ('script' as const);
+      const key = `${skill}|${resource}`;
+      if (!known.has(skill) || seen.has(key)) continue;
+      seen.add(key);
+      events.push({
+        ...base,
+        id: usageEventId('claude-code', sessionId, `res:${key}:${line.uuid ?? raw.slice(0, 80)}`),
+        skill,
+        evidence: 'path-heuristic',
+        resource,
+      });
+    }
   }
   return events;
 }
@@ -64,6 +108,7 @@ export const claudeCodeProbe: UsageProbe = {
     return true;
   },
   async scan(ctx: ProbeContext): Promise<ProbeScanResult> {
+    const known = new Set(ctx.knownSkills());
     const root = join(ctx.homeDir, '.claude', 'projects');
     const result: ProbeScanResult = { events: [], cursors: {}, files: 0 };
     if (!existsSync(root)) return result;
@@ -78,7 +123,7 @@ export const claudeCodeProbe: UsageProbe = {
         try {
           const fallbackTime = new Date(statSync(file).mtimeMs).toISOString();
           const { lines, cursor } = await readJsonlIncrement(file, ctx.cursors[key] as JsonlCursor | undefined);
-          for (const raw of lines) result.events.push(...eventsFromClaudeLine(raw, file, fallbackTime));
+          for (const raw of lines) result.events.push(...eventsFromClaudeLine(raw, file, fallbackTime, known));
           result.cursors[key] = cursor;
         } catch {
           /* 单文件解析失败跳过，不阻塞其他文件 */

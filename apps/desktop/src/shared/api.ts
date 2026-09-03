@@ -5,6 +5,7 @@ import type {
   DiscoverRepoSkills,
   ScanSummary,
   ScenarioAnalysis,
+  SkillQualitySignal,
   UsageEvent,
   UsageSessionEntry,
   UsageStatEntry,
@@ -172,6 +173,8 @@ export interface DesktopApi {
   usageEvents(query?: { skill?: string; agent?: string; session_id?: string; limit?: number }): Promise<UsageEvent[]>;
   /** 会话聚合（agent+session 分组，按最近活动倒序，只读） */
   usageSessions(query?: { skill?: string; agent?: string; limit?: number }): Promise<UsageSessionEntry[]>;
+  /** 质量信号：按技能的触发/手动占比/跟随率/陈旧度与建议标签（只读派生） */
+  usageQuality(): Promise<SkillQualitySignal[]>;
   /** 清除全部使用数据（事件/游标/聚合） */
   usageClear(): Promise<{ ok: boolean }>;
   aiUsage(): Promise<{

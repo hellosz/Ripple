@@ -387,3 +387,73 @@ describe('usage-insights-v2：明细与会话查询', () => {
     expect(fooSessions.find((s) => s.session_id === 's1')!.skills).toEqual({ foo: 2 });
   });
 });
+
+describe('usage-quality-signals：触发标注 / 跟随事件 / 质量聚合', () => {
+  it('claude-code：auto/manual 区分与 references 跟随；跟随不计使用次数', async () => {
+    const dir = join(home, '.claude', 'projects', '-proj');
+    mkdirSync(dir, { recursive: true });
+    const lines = [
+      JSON.stringify({ type: 'assistant', sessionId: 's1', cwd: '/p', timestamp: '2026-09-01T10:00:00Z', uuid: 'u1',
+        message: { content: [{ type: 'tool_use', id: 't1', name: 'Skill', input: { skill: 'demo-deploy' } }] } }),
+      JSON.stringify({ type: 'user', sessionId: 's1', cwd: '/p', timestamp: '2026-09-01T10:05:00Z', uuid: 'u2',
+        message: { content: '<command-name>/demo-deploy</command-name>' } }),
+      JSON.stringify({ type: 'user', sessionId: 's1', cwd: '/p', timestamp: '2026-09-01T10:06:00Z', uuid: 'u3',
+        message: { content: '<command-name>/unknown-cmd</command-name>' } }),
+      JSON.stringify({ type: 'assistant', sessionId: 's1', cwd: '/p', timestamp: '2026-09-01T10:10:00Z', uuid: 'u4',
+        message: { content: [{ type: 'tool_use', id: 't2', name: 'Read', input: { file_path: '/home/u/.agents/skills/demo-deploy/references/guide.md' } }] } }),
+    ];
+    writeFileSync(join(dir, 's1.jsonl'), lines.join('\n') + '\n');
+    const { claudeCodeProbe } = await import('./probe-claude-code.js');
+    const collector = makeCollector({ probes: [claudeCodeProbe] });
+    await collector.scanAll();
+    const events = collector.events({ skill: 'demo-deploy' });
+    expect(events.filter((e) => e.trigger === 'auto')).toHaveLength(1);
+    expect(events.filter((e) => e.trigger === 'manual')).toHaveLength(1);
+    expect(events.filter((e) => e.resource === 'reference')).toHaveLength(1);
+    // 未知命令名不产事件；使用次数只计触发（2）
+    expect(collector.stats('demo-deploy')[0]!.count).toBe(2);
+  });
+
+  it('qualitySignals：触发失灵 / 淘汰候选（从未使用）/ 死重 references / 共现与重复加载', () => {
+    const store = new UsageStore(join(home, '.ripple', 'usage'));
+    const ev = (skill: string, session: string, at: string, extra: Partial<UsageEvent> = {}): UsageEvent => ({
+      id: usageEventId('claude-code', session, `${skill}@${at}@${JSON.stringify(extra)}`),
+      skill, agent: 'claude-code', session_id: session, project_dir: '/p',
+      occurred_at: at, evidence: 'tool-call', source_file: '/x', ...extra,
+    });
+    const now = new Date('2026-09-03T00:00:00Z');
+    store.append([
+      // hot：6 次触发 4 manual → 触发失灵；s1 内重复加载；与 buddy 共现
+      ev('hot', 's1', '2026-09-01T01:00:00Z', { trigger: 'manual' }),
+      ev('hot', 's1', '2026-09-01T02:00:00Z', { trigger: 'manual' }),
+      ev('hot', 's2', '2026-09-01T03:00:00Z', { trigger: 'manual' }),
+      ev('hot', 's3', '2026-09-01T04:00:00Z', { trigger: 'manual' }),
+      ev('hot', 's4', '2026-09-01T05:00:00Z', { trigger: 'auto' }),
+      ev('hot', 's5', '2026-09-01T06:00:00Z', { trigger: 'auto' }),
+      ev('buddy', 's1', '2026-09-01T01:30:00Z'),
+      // deadref：3 会话触发、references 从未被读
+      ev('deadref', 'd1', '2026-09-01T01:00:00Z'),
+      ev('deadref', 'd2', '2026-09-01T02:00:00Z'),
+      ev('deadref', 'd3', '2026-09-01T03:00:00Z'),
+      // followed：references 有跟随
+      ev('followed', 'f1', '2026-09-01T01:00:00Z'),
+      ev('followed', 'f1', '2026-09-01T01:10:00Z', { resource: 'reference' }),
+    ]);
+    const signals = store.qualitySignals(['hot', 'deadref', 'followed', 'never-skill'], {
+      withReferences: new Set(['deadref', 'followed']),
+      now,
+    });
+    const get = (name: string) => signals.find((s) => s.skill === name)!;
+    expect(get('hot').manual_ratio).toBeCloseTo(4 / 6);
+    expect(get('hot').labels).toContain('触发失灵');
+    expect(get('hot').repeat_sessions).toBe(1);
+    expect(get('hot').co_occurs[0]).toMatchObject({ skill: 'buddy', sessions: 1 });
+    expect(get('deadref').labels).toContain('死重 references');
+    expect(get('followed').labels).not.toContain('死重 references');
+    expect(get('followed').reference_follow_rate).toBe(1);
+    expect(get('never-skill')).toMatchObject({ never_used: true, triggers: 0 });
+    expect(get('never-skill').labels).toContain('淘汰候选');
+    // followed 只有 1 个会话（<3）不触发死重；无 trigger 标注 manual_ratio 为 null
+    expect(get('followed').manual_ratio).toBeNull();
+  });
+});

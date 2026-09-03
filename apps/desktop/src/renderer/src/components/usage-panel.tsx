@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { CSSProperties, ReactElement } from 'react';
-import type { UsageEvent, UsageSessionEntry, UsageStatEntry } from '@ripple/hub';
+import type { SkillQualitySignal, UsageEvent, UsageSessionEntry, UsageStatEntry } from '@ripple/hub';
 import { AgentIcon } from '../agent-icons.js';
 import { ripple } from '../ripple-api.js';
 import { errText, useStore } from '../store.js';
@@ -34,6 +34,54 @@ export function evidenceBadge(agent: string): ReactElement {
 
 const baseOf = (p: string): string => p.split('/').filter(Boolean).pop() ?? p;
 
+/** 质量信号标签样式与建议动作（与 hub qualitySignals 的标签枚举对齐） */
+export const QUALITY_LABEL_META: Record<string, { tip: string; color: string; bg: string }> = {
+  触发失灵: {
+    tip: '多为手动唤起，自动触发失灵——建议重写 description 触发词',
+    color: AMBER,
+    bg: 'rgba(169,138,91,.12)',
+  },
+  '死重 references': {
+    tip: 'references 从未被读，考虑删除或并回正文',
+    color: DANGER,
+    bg: 'rgba(189,133,120,.14)',
+  },
+  淘汰候选: {
+    tip: '90 天以上未使用或从未使用，考虑卸载归档',
+    color: 'rgba(63,68,56,.55)',
+    bg: 'rgba(63,68,56,.08)',
+  },
+  'token 冗长嫌疑': {
+    tip: '同一会话被反复加载，正文可能过长，考虑精简/外移',
+    color: '#6a76c2',
+    bg: 'rgba(106,118,194,.11)',
+  },
+};
+
+/** 质量标签 chip（hover 显示解释与建议动作） */
+export function qualityLabelChip(label: string): ReactElement {
+  const meta = QUALITY_LABEL_META[label] ?? { tip: label, color: 'rgba(63,68,56,.55)', bg: 'rgba(63,68,56,.06)' };
+  return (
+    <span
+      key={label}
+      title={meta.tip}
+      style={{
+        fontSize: 9.5,
+        fontWeight: 700,
+        padding: '1px 8px',
+        borderRadius: 999,
+        background: meta.bg,
+        color: meta.color,
+        whiteSpace: 'nowrap',
+        flex: 'none',
+        cursor: 'help',
+      }}
+    >
+      {label}
+    </span>
+  );
+}
+
 /** 技能详情「使用」区块：Agent 分布 / 次数 / 最近使用 / 项目分布 / 证据等级 */
 export function UsageBlock({
   skill,
@@ -47,6 +95,7 @@ export function UsageBlock({
   const [stats, setStats] = useState<UsageStatEntry[] | null>(null);
   const [sessions, setSessions] = useState<UsageSessionEntry[] | null>(null);
   const [events, setEvents] = useState<UsageEvent[] | null>(null);
+  const [quality, setQuality] = useState<SkillQualitySignal | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -56,12 +105,14 @@ export function UsageBlock({
       ripple.usageStats(skill),
       ripple.usageSessions({ skill }),
       ripple.usageEvents({ skill, limit: 8 }),
+      ripple.usageQuality(),
     ])
-      .then(([st, se, ev]) => {
+      .then(([st, se, ev, q]) => {
         if (!alive) return;
         setStats(st);
         setSessions(se);
         setEvents(ev);
+        setQuality(q.find((item) => item.skill === skill) ?? null);
       })
       .catch((err: unknown) => {
         if (alive) setError(errText(err));
@@ -99,6 +150,11 @@ export function UsageBlock({
         {stats !== null && stats.length > 0 && (
           <span style={{ fontSize: 11.5, color: dim(0.45), fontFamily: MONO }}>共 {total} 次</span>
         )}
+        {quality !== null && quality.labels.length > 0 && (
+          <span style={{ display: 'inline-flex', gap: 5, flexWrap: 'wrap' }}>
+            {quality.labels.map(qualityLabelChip)}
+          </span>
+        )}
         <span style={{ flex: 1 }} />
         <span
           className="rp-btn-outline"
@@ -113,6 +169,7 @@ export function UsageBlock({
                 setStats(await ripple.usageStats(skill));
                 setSessions(await ripple.usageSessions({ skill }));
                 setEvents(await ripple.usageEvents({ skill, limit: 8 }));
+                setQuality((await ripple.usageQuality()).find((item) => item.skill === skill) ?? null);
               })
               .catch((err: unknown) => {
                 store.toast(`扫描失败：${errText(err)}`);

@@ -5,6 +5,7 @@ import { usageEventId } from './store.js';
 import type { JsonlCursor, ProbeContext, ProbeScanResult, UsageEvent, UsageProbe } from './types.js';
 
 const SKILL_PATH_RE = /skills\/([a-z0-9][a-z0-9-]*)\/SKILL\.md/g;
+const RESOURCE_RE = /skills\/([a-z0-9][a-z0-9-]*)\/(references|scripts)\//g;
 
 /**
  * 从一行 rollout 记录启发式提取技能使用（读取 SKILL.md 路径）。
@@ -30,7 +31,7 @@ export function eventsFromCodexLine(
     const name = match[1]!;
     if (known.has(name)) skills.add(name);
   }
-  return [...skills].map((skill) => ({
+  const events: UsageEvent[] = [...skills].map((skill) => ({
     id: usageEventId('codex', sessionId, `${raw}\n${skill}`),
     skill,
     agent: 'codex',
@@ -40,6 +41,27 @@ export function eventsFromCodexLine(
     evidence: 'path-heuristic' as const,
     source_file: file,
   }));
+  // references/scripts 跟随访问（不计入使用次数）
+  const seen = new Set<string>();
+  for (const match of raw.matchAll(RESOURCE_RE)) {
+    const skill = match[1]!;
+    const resource = match[2] === 'references' ? ('reference' as const) : ('script' as const);
+    const key = `${skill}|${resource}`;
+    if (!known.has(skill) || seen.has(key)) continue;
+    seen.add(key);
+    events.push({
+      id: usageEventId('codex', sessionId, `res:${key}:${raw}`),
+      skill,
+      agent: 'codex',
+      session_id: sessionId,
+      project_dir: '',
+      occurred_at: occurredAt,
+      evidence: 'path-heuristic',
+      source_file: file,
+      resource,
+    });
+  }
+  return events;
 }
 
 function* walkJsonl(dir: string): Generator<string> {

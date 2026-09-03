@@ -62,6 +62,7 @@ const rpcMethods = [
   'usageStats',
   'usageEvents',
   'usageSessions',
+  'usageQuality',
   'usageSettings',
   'usageClear',
   'readSkillAsset',

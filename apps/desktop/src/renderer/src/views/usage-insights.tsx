@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import type { ReactElement } from 'react';
-import type { UsageEvent, UsageSessionEntry } from '@ripple/hub';
+import type { SkillQualitySignal, UsageEvent, UsageSessionEntry } from '@ripple/hub';
 import { AgentIcon } from '../agent-icons.js';
-import { evidenceBadge } from '../components/usage-panel.js';
+import { QUALITY_LABEL_META, evidenceBadge, qualityLabelChip } from '../components/usage-panel.js';
 import { ripple } from '../ripple-api.js';
 import { errText, useStore } from '../store.js';
-import { DANGER, INK, MONO, PRIMARY, cardStyle, dim, fmtRelative, gradBtn, inputStyle, outlineBtn } from '../ui.js';
+import { AMBER, DANGER, INK, MONO, PRIMARY, cardStyle, dim, fmtRelative, gradBtn, inputStyle, outlineBtn } from '../ui.js';
 
 const baseOf = (p: string): string => p.split('/').filter(Boolean).pop() ?? p;
 
@@ -30,6 +30,9 @@ export function UsageInsightsView(): ReactElement {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [eventsByKey, setEventsByKey] = useState<Record<string, UsageEvent[] | 'loading' | 'error'>>({});
   const [scanning, setScanning] = useState(false);
+  const [tab, setTab] = useState<'sessions' | 'quality'>('sessions');
+  const [quality, setQuality] = useState<SkillQualitySignal[] | null>(null);
+  const [qualityError, setQualityError] = useState<string | null>(null);
 
   const load = useCallback((): void => {
     setSessions(null);
@@ -43,6 +46,16 @@ export function UsageInsightsView(): ReactElement {
   useEffect(() => {
     if (enabled) load();
   }, [enabled, load]);
+
+  // 质量信号：进入该子视图时懒加载（重新扫描后置空触发重取）
+  useEffect(() => {
+    if (!enabled || tab !== 'quality' || quality !== null) return;
+    setQualityError(null);
+    ripple
+      .usageQuality()
+      .then(setQuality)
+      .catch((err: unknown) => setQualityError(errText(err)));
+  }, [enabled, tab, quality]);
 
   // 从技能详情跳转时带初始技能过滤
   useEffect(() => {
@@ -115,6 +128,7 @@ export function UsageInsightsView(): ReactElement {
         const r = await ripple.usageScan();
         store.toast(`扫描完成：新增 ${r.added} 条`);
         setEventsByKey({});
+        setQuality(null);
         load();
       } catch (err) {
         store.toast(`扫描失败：${errText(err)}`);
@@ -150,6 +164,35 @@ export function UsageInsightsView(): ReactElement {
 
   return (
     <div style={{ maxWidth: 880 }}>
+      {/* 子视图切换 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14 }}>
+        {(
+          [
+            ['sessions', '会话'],
+            ['quality', '质量信号'],
+          ] as const
+        ).map(([key, label]) => (
+          <span
+            key={key}
+            className="rp-chip"
+            onClick={() => setTab(key)}
+            style={{
+              fontSize: 12,
+              padding: '5px 16px',
+              borderRadius: 999,
+              cursor: 'pointer',
+              border: `1px solid ${tab === key ? 'rgba(107,127,67,.5)' : 'rgba(63,68,56,.12)'}`,
+              background: tab === key ? 'rgba(147,168,107,.1)' : undefined,
+              color: tab === key ? PRIMARY : dim(0.55),
+              fontWeight: tab === key ? 700 : undefined,
+            }}
+          >
+            {label}
+          </span>
+        ))}
+      </div>
+      {tab === 'sessions' && (
+        <>
       {/* 汇总条 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 18, marginBottom: 14, flexWrap: 'wrap' }}>
         {(
@@ -332,6 +375,167 @@ export function UsageInsightsView(): ReactElement {
           })}
         </div>
       ))}
+        </>
+      )}
+      {tab === 'quality' && (
+        <QualitySignals
+          signals={quality}
+          error={qualityError}
+          onSkillClick={(name) => {
+            setSkillFilter(name);
+            setTab('sessions');
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+const pct = (v: number | null): string => (v === null ? '—' : `${Math.round(v * 100)}%`);
+
+const thStyle = {
+  textAlign: 'left' as const,
+  fontSize: 11,
+  fontWeight: 700,
+  color: 'rgba(63,68,56,.45)',
+  padding: '7px 12px',
+  whiteSpace: 'nowrap' as const,
+  borderBottom: '1px solid rgba(63,68,56,.09)',
+};
+
+const tdStyle = {
+  fontSize: 12,
+  padding: '8px 12px',
+  whiteSpace: 'nowrap' as const,
+  borderBottom: '1px solid rgba(63,68,56,.055)',
+  fontFamily: MONO,
+};
+
+/** 质量信号子视图：技能表 + 建议标签（阈值与语义见 hub qualitySignals） */
+function QualitySignals({
+  signals,
+  error,
+  onSkillClick,
+}: {
+  signals: SkillQualitySignal[] | null;
+  error: string | null;
+  onSkillClick: (skill: string) => void;
+}): ReactElement {
+  const [openSkill, setOpenSkill] = useState<string | null>(null);
+  if (error !== null) {
+    return <div style={{ textAlign: 'center', padding: '70px 0', color: DANGER, fontSize: 12.5 }}>加载失败：{error}</div>;
+  }
+  if (signals === null) {
+    return <div style={{ textAlign: 'center', padding: '70px 0', color: dim(0.45), fontSize: 12.5 }}>加载中…</div>;
+  }
+  if (signals.length === 0) {
+    return (
+      <div style={{ textAlign: 'center', padding: '70px 0', color: dim(0.45), fontSize: 12.5 }}>
+        暂无质量信号：先在「会话」页执行扫描采集使用数据。
+      </div>
+    );
+  }
+  // 顶部小结：按标签分组计数
+  const labelCounts = new Map<string, number>();
+  for (const s of signals) {
+    for (const label of s.labels) labelCounts.set(label, (labelCounts.get(label) ?? 0) + 1);
+  }
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 12.5, color: dim(0.5) }}>
+          共 <b style={{ color: INK, fontFamily: MONO }}>{signals.length}</b> 个技能
+        </span>
+        {[...labelCounts.entries()].map(([label, n]) => (
+          <span key={label} title={QUALITY_LABEL_META[label]?.tip} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11.5, color: dim(0.55), cursor: 'help' }}>
+            {qualityLabelChip(label)}
+            <b style={{ fontFamily: MONO, color: INK }}>{n}</b>
+          </span>
+        ))}
+      </div>
+      <div style={{ ...cardStyle, overflowX: 'auto', padding: 0 }}>
+        <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 760 }}>
+          <thead>
+            <tr>
+              <th style={thStyle}>技能</th>
+              <th style={thStyle}>触发</th>
+              <th style={thStyle}>会话</th>
+              <th style={{ ...thStyle, cursor: 'help' }} title="手动 slash 唤起占可判定触发的比例；≥50% 提示自动触发失灵">手动占比</th>
+              <th style={{ ...thStyle, cursor: 'help' }} title="有 references 跟随读取的触发会话占比">ref 跟随</th>
+              <th style={{ ...thStyle, cursor: 'help' }} title="有 scripts 跟随访问的触发会话占比">scripts 跟随</th>
+              <th style={thStyle}>最近使用</th>
+              <th style={thStyle}>标签</th>
+            </tr>
+          </thead>
+          <tbody>
+            {signals.map((s) => {
+              const open = openSkill === s.skill;
+              const manualHot = s.manual_ratio !== null && s.manual_ratio >= 0.5;
+              const refDead = s.reference_follow_rate === 0 && s.triggers > 0;
+              const scriptDead = s.script_follow_rate === 0 && s.triggers > 0;
+              return (
+                <Fragment key={s.skill}>
+                  <tr
+                    className="rp-hover-row"
+                    onClick={() => setOpenSkill(open ? null : s.skill)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <td style={{ ...tdStyle, fontWeight: 700, color: INK }}>
+                      <span
+                        title={`按「${s.skill}」过滤会话`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSkillClick(s.skill);
+                        }}
+                        style={{ cursor: 'pointer' }}
+                        className="rp-link"
+                      >
+                        {s.skill}
+                      </span>
+                    </td>
+                    <td style={tdStyle}>{s.triggers}</td>
+                    <td style={tdStyle}>{s.sessions}</td>
+                    <td style={{ ...tdStyle, color: manualHot ? AMBER : undefined, fontWeight: manualHot ? 700 : undefined }}>
+                      {pct(s.manual_ratio)}
+                    </td>
+                    <td style={{ ...tdStyle, color: refDead ? DANGER : undefined }}>{pct(s.reference_follow_rate)}</td>
+                    <td style={{ ...tdStyle, color: scriptDead ? DANGER : undefined }}>{pct(s.script_follow_rate)}</td>
+                    <td style={{ ...tdStyle, color: s.never_used ? dim(0.4) : undefined }} title={s.last_used ?? undefined}>
+                      {s.never_used ? '从未使用' : s.last_used ? fmtRelative(s.last_used) : '—'}
+                    </td>
+                    <td style={{ ...tdStyle, fontFamily: undefined }}>
+                      <span style={{ display: 'inline-flex', gap: 4, flexWrap: 'wrap' }}>
+                        {s.labels.length > 0 ? s.labels.map(qualityLabelChip) : <span style={{ color: dim(0.3) }}>—</span>}
+                      </span>
+                    </td>
+                  </tr>
+                  {open && (
+                    <tr>
+                      <td colSpan={8} style={{ ...tdStyle, fontFamily: undefined, background: 'rgba(63,68,56,.025)', whiteSpace: 'normal' }}>
+                        <span style={{ fontSize: 11.5, color: dim(0.5) }}>
+                          重复加载会话 <b style={{ fontFamily: MONO, color: INK }}>{s.repeat_sessions}</b> 个
+                          {s.co_occurs.length > 0 && (
+                            <>
+                               · 常与
+                              {s.co_occurs.map((c) => (
+                                <span key={c.skill} style={{ fontFamily: MONO, color: PRIMARY, margin: '0 4px' }}>
+                                  {c.skill}(×{c.sessions})
+                                </span>
+                              ))}
+                              同会话出现
+                            </>
+                          )}
+                          {s.co_occurs.length === 0 && ' · 暂无共现技能'}
+                        </span>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

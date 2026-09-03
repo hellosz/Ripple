@@ -5,7 +5,7 @@ import { codexProbe } from './probe-codex.js';
 import { createOpencodeProbe } from './probe-opencode.js';
 import { hermesProbe } from './probe-hermes.js';
 import { dshProbe } from './probe-dsh.js';
-import type { ScanSummary, UsageEvent, UsageProbe, UsageQuery, UsageSessionEntry, UsageSettings, UsageStatEntry } from './types.js';
+import type { ScanSummary, SkillQualitySignal, UsageEvent, UsageProbe, UsageQuery, UsageSessionEntry, UsageSettings, UsageStatEntry } from './types.js';
 
 export interface UsageCollectorOptions {
   homeDir: string;
@@ -79,6 +79,10 @@ export class UsageCollector {
   }
 
   /** 聚合统计（skill 维度可再过滤） */
+  quality(installedSkills: string[], withReferences: ReadonlySet<string>): SkillQualitySignal[] {
+    return this.store.qualitySignals(installedSkills, { withReferences });
+  }
+
   events(query?: UsageQuery): UsageEvent[] {
     return this.store.events(query);
   }

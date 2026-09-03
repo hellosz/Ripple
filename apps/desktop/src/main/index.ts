@@ -106,6 +106,9 @@ async function runUsageScan(trigger: string): Promise<Awaited<ReturnType<UsageCo
 function usageSummaryOf(skill: string): string | null {
   const stats = usageCollector.stats(skill);
   if (stats.length === 0) return null;
+  const quality = usageCollector
+    .quality([skill], new Set())
+    .find((q) => q.skill === skill);
   const lines = stats.map((s) => {
     const projects = Object.entries(s.projects)
       .sort((a, b) => b[1] - a[1])
@@ -114,6 +117,14 @@ function usageSummaryOf(skill: string): string | null {
       .join('、');
     return `- ${s.agent}: ${s.count} 次，首次 ${s.first_at.slice(0, 10)}，最近 ${s.last_at.slice(0, 10)}${projects ? `，主要项目 ${projects}` : ''}`;
   });
+  if (quality) {
+    const extras: string[] = [];
+    if (quality.manual_ratio !== null) extras.push(`手动触发占比 ${(quality.manual_ratio * 100).toFixed(0)}%`);
+    if (quality.reference_follow_rate !== null) extras.push(`references 跟随率 ${(quality.reference_follow_rate * 100).toFixed(0)}%`);
+    if (quality.script_follow_rate !== null) extras.push(`scripts 跟随率 ${(quality.script_follow_rate * 100).toFixed(0)}%`);
+    if (quality.repeat_sessions > 0) extras.push(`重复加载会话 ${quality.repeat_sessions} 个`);
+    if (extras.length) lines.push(`- 质量信号：${extras.join('，')}`);
+  }
   return `## 本地使用统计（聚合元数据，供评估参考）\n${lines.join('\n')}`;
 }
 
@@ -380,6 +391,19 @@ const handlers: Record<string, RpcHandler> = {
     usageCollector.events(query),
   usageSessions: (query?: { skill?: string; agent?: string; limit?: number }) =>
     usageCollector.sessions(query),
+  usageQuality: () => {
+    const installed = knownSkillNames();
+    const withReferences = new Set(
+      installed.filter((name) => {
+        try {
+          return existsSync(join(services.hub.skillDir(name), 'references'));
+        } catch {
+          return false;
+        }
+      }),
+    );
+    return usageCollector.quality(installed, withReferences);
+  },
   usageSettings: (settings?: { enabled: boolean; agents: Record<string, boolean> }) => {
     if (settings) {
       services.hub.setUsageCollection(settings);
