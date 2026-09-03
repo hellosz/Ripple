@@ -74,6 +74,26 @@ export interface UsageProbe {
   scan(ctx: ProbeContext): Promise<ProbeScanResult>;
 }
 
+/** 明细/会话查询过滤条件（只读） */
+export interface UsageQuery {
+  skill?: string;
+  agent?: string;
+  session_id?: string;
+  limit?: number;
+}
+
+/** 会话聚合条目：agent+session 分组 */
+export interface UsageSessionEntry {
+  agent: string;
+  session_id: string;
+  project_dir: string;
+  first_at: string;
+  last_at: string;
+  count: number;
+  /** 技能 → 次数 */
+  skills: Record<string, number>;
+}
+
 /** scanAll 汇总：每个 probe 一条 source 记录，失败不阻塞其他源 */
 export interface ScanSummary {
   added: number;

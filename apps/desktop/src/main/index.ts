@@ -376,6 +376,10 @@ const handlers: Record<string, RpcHandler> = {
   discoverDeepSearch: (query?: string) => discovery.deepSearch(query),
   usageScan: () => runUsageScan('手动'),
   usageStats: (skill?: string) => usageCollector.stats(skill),
+  usageEvents: (query?: { skill?: string; agent?: string; session_id?: string; limit?: number }) =>
+    usageCollector.events(query),
+  usageSessions: (query?: { skill?: string; agent?: string; limit?: number }) =>
+    usageCollector.sessions(query),
   usageSettings: (settings?: { enabled: boolean; agents: Record<string, boolean> }) => {
     if (settings) {
       services.hub.setUsageCollection(settings);

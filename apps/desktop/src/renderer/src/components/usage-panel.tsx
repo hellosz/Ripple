@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { CSSProperties, ReactElement } from 'react';
-import type { UsageStatEntry } from '@ripple/hub';
+import type { UsageEvent, UsageSessionEntry, UsageStatEntry } from '@ripple/hub';
 import { AgentIcon } from '../agent-icons.js';
 import { ripple } from '../ripple-api.js';
 import { errText, useStore } from '../store.js';
@@ -45,15 +45,23 @@ export function UsageBlock({
   const store = useStore();
   const enabled = store.snapshot?.settings.usage_collection.enabled ?? false;
   const [stats, setStats] = useState<UsageStatEntry[] | null>(null);
+  const [sessions, setSessions] = useState<UsageSessionEntry[] | null>(null);
+  const [events, setEvents] = useState<UsageEvent[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!enabled) return;
     let alive = true;
-    ripple
-      .usageStats(skill)
-      .then((s) => {
-        if (alive) setStats(s);
+    Promise.all([
+      ripple.usageStats(skill),
+      ripple.usageSessions({ skill }),
+      ripple.usageEvents({ skill, limit: 8 }),
+    ])
+      .then(([st, se, ev]) => {
+        if (!alive) return;
+        setStats(st);
+        setSessions(se);
+        setEvents(ev);
       })
       .catch((err: unknown) => {
         if (alive) setError(errText(err));
@@ -96,11 +104,15 @@ export function UsageBlock({
           className="rp-btn-outline"
           onClick={() => {
             setStats(null);
+            setSessions(null);
+            setEvents(null);
             void ripple
               .usageScan()
               .then(async (r) => {
                 store.toast(`扫描完成：新增 ${r.added} 条`);
                 setStats(await ripple.usageStats(skill));
+                setSessions(await ripple.usageSessions({ skill }));
+                setEvents(await ripple.usageEvents({ skill, limit: 8 }));
               })
               .catch((err: unknown) => {
                 store.toast(`扫描失败：${errText(err)}`);
@@ -175,6 +187,98 @@ export function UsageBlock({
             </div>
           );
         })}
+
+        {/* 会话明细：该技能出现过的最近会话 */}
+        {sessions !== null && sessions.length > 0 && (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '16px 0 8px' }}>
+              <span style={{ fontWeight: 900, fontSize: 12.5, color: INK }}>会话</span>
+              <span style={{ fontSize: 11, color: dim(0.4), fontFamily: MONO }}>{sessions.length} 个</span>
+              <span style={{ flex: 1 }} />
+              {sessions.length > 5 && (
+                <span
+                  onClick={() => {
+                    store.setSkillDetail(null);
+                    store.setView({ kind: 'usage', usageSkill: skill });
+                  }}
+                  style={{ fontSize: 11.5, color: PRIMARY, cursor: 'pointer', fontWeight: 700 }}
+                >
+                  在使用分析中查看全部 →
+                </span>
+              )}
+            </div>
+            {sessions.slice(0, 5).map((s) => {
+              const agentName = store.snapshot?.agents.find((a) => a.id === s.agent)?.name ?? s.agent;
+              const times = s.skills[skill] ?? s.count;
+              return (
+                <div
+                  key={`${s.agent}-${s.session_id}`}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 9,
+                    padding: '7px 12px',
+                    border: '1px solid rgba(63,68,56,.07)',
+                    borderRadius: 10,
+                    marginBottom: 6,
+                    fontSize: 12,
+                  }}
+                >
+                  <AgentIcon agentId={s.agent} name={agentName} size={14} />
+                  <span title={s.session_id} style={{ fontFamily: MONO, fontSize: 11, color: dim(0.55), whiteSpace: 'nowrap' }}>
+                    {s.session_id.slice(0, 10)}…
+                  </span>
+                  {s.project_dir && (
+                    <span
+                      title={s.project_dir}
+                      style={{
+                        fontSize: 10.5,
+                        fontFamily: MONO,
+                        padding: '1px 8px',
+                        borderRadius: 999,
+                        background: 'rgba(63,68,56,.05)',
+                        color: dim(0.55),
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {baseOf(s.project_dir)}
+                    </span>
+                  )}
+                  <span style={{ flex: 1 }} />
+                  <span style={{ fontFamily: MONO, fontSize: 11.5, color: PRIMARY, fontWeight: 700 }}>{times} 次</span>
+                  <span title={s.last_at} style={{ fontSize: 10.5, color: dim(0.4), fontFamily: MONO, whiteSpace: 'nowrap' }}>
+                    {fmtRelative(s.last_at)}
+                  </span>
+                </div>
+              );
+            })}
+          </>
+        )}
+
+        {/* 最近事件时间线 */}
+        {events !== null && events.length > 0 && (
+          <>
+            <div style={{ fontWeight: 900, fontSize: 12.5, color: INK, margin: '16px 0 8px' }}>最近事件</div>
+            {events.map((e) => {
+              const agentName = store.snapshot?.agents.find((a) => a.id === e.agent)?.name ?? e.agent;
+              return (
+                <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '3px 2px', fontSize: 12 }}>
+                  <span title={e.occurred_at} style={{ fontFamily: MONO, fontSize: 11, color: dim(0.45), width: 92, flex: 'none' }}>
+                    {fmtRelative(e.occurred_at)}
+                  </span>
+                  <span style={{ color: INK, fontWeight: 700, whiteSpace: 'nowrap' }}>{agentName}</span>
+                  {e.project_dir && (
+                    <span title={e.project_dir} style={{ fontSize: 10.5, fontFamily: MONO, color: dim(0.5), whiteSpace: 'nowrap' }}>
+                      {baseOf(e.project_dir)}
+                    </span>
+                  )}
+                  <span style={{ flex: 1 }} />
+                  {evidenceBadge(e.agent)}
+                </div>
+              );
+            })}
+          </>
+        )}
       </div>
     </div>
   );

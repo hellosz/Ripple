@@ -5,7 +5,7 @@ import { codexProbe } from './probe-codex.js';
 import { createOpencodeProbe } from './probe-opencode.js';
 import { hermesProbe } from './probe-hermes.js';
 import { dshProbe } from './probe-dsh.js';
-import type { ScanSummary, UsageProbe, UsageSettings, UsageStatEntry } from './types.js';
+import type { ScanSummary, UsageEvent, UsageProbe, UsageQuery, UsageSessionEntry, UsageSettings, UsageStatEntry } from './types.js';
 
 export interface UsageCollectorOptions {
   homeDir: string;
@@ -79,6 +79,14 @@ export class UsageCollector {
   }
 
   /** 聚合统计（skill 维度可再过滤） */
+  events(query?: UsageQuery): UsageEvent[] {
+    return this.store.events(query);
+  }
+
+  sessions(query?: UsageQuery): UsageSessionEntry[] {
+    return this.store.sessions(query);
+  }
+
   stats(skill?: string): UsageStatEntry[] {
     const stats = this.store.stats();
     return skill ? stats.filter((s) => s.skill === skill) : stats;

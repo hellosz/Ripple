@@ -4,12 +4,14 @@ import type { CommunitySkill } from '@ripple/hub';
 import type { AuthState, HubSnapshot, UpdateEntry } from '../../shared/api.js';
 import { ripple } from './ripple-api.js';
 
-export type ViewKind = 'local' | 'agent' | 'project' | 'community' | 'discover' | 'market' | 'tasks' | 'updates' | 'settings';
+export type ViewKind = 'local' | 'agent' | 'project' | 'community' | 'discover' | 'market' | 'tasks' | 'usage' | 'updates' | 'settings';
 
 export interface View {
   kind: ViewKind;
   agentId?: string;
   projectPath?: string;
+  /** usage 视图的初始技能过滤（从技能详情跳转时携带） */
+  usageSkill?: string;
 }
 
 export type ScopeFilter = 'all' | 'global' | 'project';

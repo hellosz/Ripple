@@ -131,6 +131,9 @@ export function Toolbar(): ReactElement {
   } else if (view.kind === 'tasks') {
     title = '任务';
     sub = '对本地技能批量运行分析任务';
+  } else if (view.kind === 'usage') {
+    title = '使用分析';
+    sub = '按 Agent / 会话查看技能使用情况';
   } else if (view.kind === 'updates') {
     title = '更新中心';
     sub = `市场 ${loggedIn ? updates.length : '—'} · 社区 ${communityCount} 个可更新`;

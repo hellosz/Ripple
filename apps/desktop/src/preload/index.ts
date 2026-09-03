@@ -60,6 +60,8 @@ const rpcMethods = [
   'discoverDeepSearch',
   'usageScan',
   'usageStats',
+  'usageEvents',
+  'usageSessions',
   'usageSettings',
   'usageClear',
   'readSkillAsset',

@@ -10,6 +10,7 @@ import { MarketView } from './views/market.js';
 import { CommunityView } from './views/community.js';
 import { DiscoverView } from './views/discover.js';
 import { TasksView } from './views/tasks.js';
+import { UsageInsightsView } from './views/usage-insights.js';
 import { UpdatesView } from './views/updates.js';
 import { SettingsView } from './views/settings.js';
 import { GateView } from './views/gate.js';
@@ -26,6 +27,7 @@ function Content(): ReactElement {
   if (view.kind === 'discover') return <DiscoverView />;
   // 更新中心不再整体门控：社区开源更新无需登录，市场节内单独提示登录
   if (view.kind === 'tasks') return <TasksView />;
+  if (view.kind === 'usage') return <UsageInsightsView />;
   if (view.kind === 'updates') return <UpdatesView />;
   if (view.kind === 'settings') return <SettingsView />;
   return <SkillListView />;

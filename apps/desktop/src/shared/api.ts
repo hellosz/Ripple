@@ -5,6 +5,8 @@ import type {
   DiscoverRepoSkills,
   ScanSummary,
   ScenarioAnalysis,
+  UsageEvent,
+  UsageSessionEntry,
   UsageStatEntry,
   DetectedAgent,
   DistMode,
@@ -166,6 +168,10 @@ export interface DesktopApi {
   usageStats(skill?: string): Promise<UsageStatEntry[]>;
   /** 读取/设置使用采集开关（传参即设置并重新调度） */
   usageSettings(settings?: { enabled: boolean; agents: Record<string, boolean> }): Promise<{ enabled: boolean; agents: Record<string, boolean> }>;
+  /** 使用事件明细（过滤 + 倒序 + limit，只读） */
+  usageEvents(query?: { skill?: string; agent?: string; session_id?: string; limit?: number }): Promise<UsageEvent[]>;
+  /** 会话聚合（agent+session 分组，按最近活动倒序，只读） */
+  usageSessions(query?: { skill?: string; agent?: string; limit?: number }): Promise<UsageSessionEntry[]>;
   /** 清除全部使用数据（事件/游标/聚合） */
   usageClear(): Promise<{ ok: boolean }>;
   aiUsage(): Promise<{

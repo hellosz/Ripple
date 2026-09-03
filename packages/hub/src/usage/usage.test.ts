@@ -340,3 +340,50 @@ describe('deepseek-harness probe：zstd 多帧与白名单', () => {
     expect(dshProbe.available()).toBe(true);
   });
 });
+
+describe('usage-insights-v2：明细与会话查询', () => {
+  function seed(store: UsageStore): void {
+    const ev = (skill: string, session: string, at: string, agent = 'claude-code', proj = '/p1'): UsageEvent => ({
+      id: usageEventId(agent, session, `${skill}@${at}`),
+      skill,
+      agent,
+      session_id: session,
+      project_dir: proj,
+      occurred_at: at,
+      evidence: 'tool-call',
+      source_file: '/x',
+    });
+    store.append([
+      ev('foo', 's1', '2026-08-01T10:00:00Z'),
+      ev('foo', 's1', '2026-08-01T11:00:00Z'),
+      ev('bar', 's1', '2026-08-01T11:30:00Z'),
+      ev('foo', 's2', '2026-08-02T09:00:00Z', 'codex', '/p2'),
+    ]);
+  }
+
+  it('events：过滤 + 倒序 + limit', () => {
+    const store = new UsageStore(join(home, '.ripple', 'usage'));
+    seed(store);
+    const foo = store.events({ skill: 'foo' });
+    expect(foo.map((e) => e.session_id)).toEqual(['s2', 's1', 's1']);
+    expect(store.events({ skill: 'foo', limit: 1 })[0]!.agent).toBe('codex');
+    expect(store.events({ agent: 'claude-code' })).toHaveLength(3);
+    expect(store.events({ session_id: 's2' })).toHaveLength(1);
+  });
+
+  it('sessions：分组聚合 + 技能分布 + 按最近活动倒序 + skill 过滤', () => {
+    const store = new UsageStore(join(home, '.ripple', 'usage'));
+    seed(store);
+    const all = store.sessions();
+    expect(all.map((s) => s.session_id)).toEqual(['s2', 's1']);
+    const s1 = all.find((s) => s.session_id === 's1')!;
+    expect(s1).toMatchObject({ agent: 'claude-code', project_dir: '/p1', count: 3 });
+    expect(s1.skills).toEqual({ foo: 2, bar: 1 });
+    expect(s1.first_at).toBe('2026-08-01T10:00:00Z');
+    expect(s1.last_at).toBe('2026-08-01T11:30:00Z');
+    // skill 过滤：只统计该技能的次数
+    const fooSessions = store.sessions({ skill: 'foo' });
+    expect(fooSessions).toHaveLength(2);
+    expect(fooSessions.find((s) => s.session_id === 's1')!.skills).toEqual({ foo: 2 });
+  });
+});

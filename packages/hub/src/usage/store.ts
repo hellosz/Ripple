@@ -1,7 +1,7 @@
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
-import type { UsageCursor, UsageEvent, UsageStatEntry } from './types.js';
+import type { UsageCursor, UsageEvent, UsageQuery, UsageSessionEntry, UsageStatEntry } from './types.js';
 
 /** 事件 id：幂等去重的唯一来源 */
 export function usageEventId(agent: string, sessionId: string, callKey: string): string {
@@ -48,6 +48,48 @@ export class UsageStore {
   }
 
   /** 追加事件（按 id 去重，同分片内幂等）；返回实际新增数 */
+  /** 事件明细查询（只读）：过滤 + 按发生时间倒序 + limit */
+  events(query: UsageQuery = {}): UsageEvent[] {
+    const all = this.listShards()
+      .flatMap((s) => this.readShardEvents(s))
+      .filter(
+        (e) =>
+          (!query.skill || e.skill === query.skill) &&
+          (!query.agent || e.agent === query.agent) &&
+          (!query.session_id || e.session_id === query.session_id),
+      )
+      .sort((a, b) => b.occurred_at.localeCompare(a.occurred_at));
+    return query.limit ? all.slice(0, query.limit) : all;
+  }
+
+  /** 会话聚合查询（只读）：agent+session 分组，按最近活动倒序 */
+  sessions(query: UsageQuery = {}): UsageSessionEntry[] {
+    const byKey = new Map<string, UsageSessionEntry>();
+    for (const e of this.events({ ...(query.skill ? { skill: query.skill } : {}), ...(query.agent ? { agent: query.agent } : {}) })) {
+      const key = `${e.agent}\n${e.session_id}`;
+      let entry = byKey.get(key);
+      if (!entry) {
+        entry = {
+          agent: e.agent,
+          session_id: e.session_id,
+          project_dir: e.project_dir,
+          first_at: e.occurred_at,
+          last_at: e.occurred_at,
+          count: 0,
+          skills: {},
+        };
+        byKey.set(key, entry);
+      }
+      if (e.occurred_at < entry.first_at) entry.first_at = e.occurred_at;
+      if (e.occurred_at > entry.last_at) entry.last_at = e.occurred_at;
+      if (e.project_dir && !entry.project_dir) entry.project_dir = e.project_dir;
+      entry.count += 1;
+      entry.skills[e.skill] = (entry.skills[e.skill] ?? 0) + 1;
+    }
+    const sorted = [...byKey.values()].sort((a, b) => b.last_at.localeCompare(a.last_at));
+    return query.limit ? sorted.slice(0, query.limit) : sorted;
+  }
+
   append(events: UsageEvent[]): number {
     if (events.length === 0) return 0;
     mkdirSync(this.usageDir, { recursive: true });
